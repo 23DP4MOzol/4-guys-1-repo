@@ -1,0 +1,85 @@
+<!-- pasākumi.html - Otrs projekta ekrāns -->
+<!DOCTYPE html>
+<html lang="lv">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pasākumi - Voluntio</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="events.css">
+</head>
+<body>
+    <header>
+        <nav class="navbar">
+            <div class="logo">Voluntio</div>
+            <ul class="nav-links">
+                <li><a href="index.html">Sākumlapa</a></li>
+                <li><a href="pasakumi.html" class="active">Pasākumi</a></li>
+                <li><a href="pieteikties.html">Pieteikties</a></li>
+                <li><a href="admin.html">Admin panelis</a></li>
+            </ul>
+            <div class="auth-buttons">
+                <a href="login.html" class="btn-login">Pieteikties</a>
+                <a href="register.html" class="btn-register">Reģistrēties</a>
+            </div>
+        </nav>
+    </header>
+
+    <main class="events-main">
+        <section class="events-header">
+            <h1>Visi pieejamie pasākumi</h1>
+            <p>Atrast talkas, labdarības akcijas un skolas pasākumus, kuros nepieciešami brīvprātīgie.</p>
+            <div class="filter-container">
+                <input type="text" id="searchInput" placeholder="Meklēt pēc nosaukuma...">
+                <select id="categoryFilter">
+                    <option value="">Visas kategorijas</option>
+                    <option value="talka">Talkas</option>
+                    <option value="labdariba">Labdarība</option>
+                    <option value="skola">Skolas pasākumi</option>
+                </select>
+            </div>
+        </section>
+
+        <section class="events-grid-section">
+            <div class="events-grid">
+                <div class="event-card" data-category="labdariba">
+                    <div class="card-badge">Labdarība</div>
+                    <h3>Skolas labdarības tirdziņš</h3>
+                    <p class="card-desc">Palīdzēt organizēt un uzraudzīt stendus, pārdot pašceptus gardumus un koordinēt apmeklētājus.</p>
+                    <div class="card-meta">
+                        <span>📅 15.04.2026</span>
+                        <span>📍 Skolas sporta zāle</span>
+                    </div>
+                    <a href="pieteikties.html" class="btn-card">Pieteikties dalībai</a>
+                </div>
+
+                <div class="event-card" data-category="talka">
+                    <div class="card-badge">Talka</div>
+                    <h3>Apkārtnes sakopšanas talka</h3>
+                    <p class="card-desc">Vākt atkritumus, grābt lapas un palīdzēt labot skolas parka soliņus pavasara sezonā.</p>
+                    <div class="card-meta">
+                        <span>📅 22.04.2026</span>
+                        <span>📍 Skolas parks un pagalms</span>
+                    </div>
+                    <a href="pieteikties.html" class="btn-card">Pieteikties dalībai</a>
+                </div>
+
+                <div class="event-card" data-category="skola">
+                    <div class="card-badge">Skolas pasākums</div>
+                    <h3>Zinātniskās konferences tehniskais atbalsts</h3>
+                    <p class="card-desc">Palīdzēt viesiem orientēties telpās, uzstādīt prezentācijas un nodrošināt kafijas paužu uzraudzību.</p>
+                    <div class="card-meta">
+                        <span>📅 05.05.2026</span>
+                        <span>📍 Galvenā aula</span>
+                    </div>
+                    <a href="pieteikties.html" class="btn-card">Pieteikties dalībai</a>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <footer>
+        <p>&copy; 2026 Pasākumu Plānotājs. Visas tiesības aizsargātas.</p>
+    </footer>
+</body>
+</html>
