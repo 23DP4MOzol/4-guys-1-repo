@@ -1,0 +1,5 @@
+# Workspace editor files. Laravel-specific generated files are ignored in app/.gitignore.
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+.DS_Store
