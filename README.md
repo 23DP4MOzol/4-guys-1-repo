@@ -4,7 +4,57 @@
 
 Lietotāji var reģistrēties dalībai dažādos labdarības vai skolas pasākumos, viesi var skatīt pasākumu sarakstu, bet administratori var izveidot jaunus pasākumus, sekot līdzi pieteikumiem un mainīt to statusus.
 
-### Izmantotās tehneloģijas: HMTL, Javascript, css, supabase (sql). (soon to change)
+### Izvēles pamatojums
+Mūsu projekta mērķis ir izveidot vienotu mājaslapu brīvprātīgo pasākumu, festivālu, skolas pasākumu un talku pieteikšanai.
+
+**Platformā lietotāji varēs:**
+- Reģistrēties dalībai dažādos labdarības un skolas pasākumos.
+- Apskatīt pieejamo pasākumu sarakstu.
+- Meklēt un filtrēt pasākumus pēc nepieciešamajiem kritērijiem.
+- Administratori varēs izveidot jaunus pasākumus.
+- Administratori varēs sekot līdzi dalībnieku pieteikumiem.
+- Administratori varēs mainīt pieteikumu statusus.
+- Šādu risinājumu izvēlējāmies, jo vienuviet būs iespējams pārskatīt dažāda veida pasākumus un ērti pieteikties dalībai tajos.
+
+### Tirgus izpēte
+Lai izvērtētu līdzīgus risinājumus un labāk izprastu esošo tirgu, tika apskatītas vairākas Latvijā pieejamas platformas.
+
+### 1. Brivpratigaisdarbs.lv
+**Kas tas ir:**
+Specializēts rīks brīvprātīgā darba organizēšanai, vadīšanai un administrēšanai.
+
+**Galvenās iespējas:**
+- Brīvprātīgo piesaiste.
+- Automatizēta brīvprātīgo stundu uzskaite.
+- Brīvprātīgo reģistrācija atbilstoši likumdošanas prasībām.
+- Atsauksmju un novērtējumu sistēma misiju izvērtēšanai.
+
+**Mērķauditorija:**
+- NVO.
+- Biedrības.
+- Pašvaldību iestādes.
+- Pasākumu rīkotāji.
+- Brīvprātīgie, tostarp jaunieši un aktīvisti.
+
+### 2. Visasiespejas.lv
+**Kas tas ir:**
+Latvijas jauniešu iespēju un neformālās izglītības platforma, kas darbojas kā plašs notikumu agregators.
+
+**Galvenās iespējas:**
+- Plašs pasākumu kalendārs.
+- Erasmus+ projektu un apmaiņas iespēju publicēšana.
+- Festivālu un semināru informācija.
+- Pasākumu filtrēšana pēc interesēm un tēmām.
+- Vakances un starptautiskās mobilitātes iespējas.
+
+**Mērķauditoriaja:**
+- Jaunieši vecumā no 13 līdz 30 gadiem.
+- Studenti.
+- Jaunatnes darbinieki.
+- Organizācijas, kas vēlas reklamēt savus pasākumus.
+
+
+## Izmantotās tehneloģijas: HMTL, Javascript, css, supabase (sql). (soon to change)
 
 uzstādīšanas un palaišanas instrukcija (soon to change)
 
@@ -13,7 +63,7 @@ uzstādīšanas un palaišanas instrukcija (soon to change)
 ### 1. Frontend
 Komandas dalībnieki: Māris Ozols un Roberts Neimanis
 
-**Māris Ozols** 
+**Māris Ozols** Frontend - Sākumlapa un Saraksta ekrāns
 
 Galvenie ekrāni:
 - Main Page (Sākumlapa)
@@ -25,7 +75,7 @@ Uzdevumi:
 - Responsīvā izkārtojuma kodēšana
 - Datu attēlošanas saskarnes izstrāde
 
-**Roberts Neimanis**
+**Roberts Neimanis** Frontend – Autoriizācija un CRUD forma
 
 Galvenie ekrāni:
 - Login / Registration Page (Autorizācijas un reģistrācijas ekrāns)
