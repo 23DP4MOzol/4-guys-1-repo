@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="lv">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Izveidot pasākumu - Voluntio</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body data-auth-required="true">
+    <header>
+        <nav class="navbar">
+            <div class="logo">Voluntio</div>
+            <ul class="nav-links">
+                <li><a href="index.html">Sākumlapa</a></li>
+                <li><a href="pasakumi.html">Pasākumi</a></li>
+                <li><a href="pieteikties.html">Pieteikties</a></li>
+                <li><a href="admin.html">Admin panelis</a></li>
+            </ul>
+            <div class="auth-buttons">
+                <a href="login.html" class="btn-login">Pieteikties</a>
+                <a href="register.html" class="btn-register">Reģistrēties</a>
+            </div>
+        </nav>
+    </header>
+
+    <main class="events-main">
+        <section class="events-header">
+            <h1>Izveidot brīvprātīgo pasākumu</h1>
+            <p>Izveido savu pasākumu ar pielāgotu norisi un brīvprātīgo lomām.</p>
+        </section>
+        <section class="card simple-form-card">
+            <form class="simple-form" action="#" method="post" data-event-form>
+                <label for="title">Pasākuma nosaukums</label>
+                <input id="title" name="title" type="text" placeholder="Piemēram, Parka sakopšana" required>
+
+                <label for="category">Kategorija</label>
+                <select id="category" name="category">
+                    <option>Labdarība</option>
+                    <option>Talka</option>
+                    <option>Skolas pasākums</option>
+                    <option>Cits</option>
+                </select>
+
+                <label for="date">Datums</label>
+                <input id="date" name="date" type="date" required>
+
+                <label for="location">Norises vieta</label>
+                <input id="location" name="location" type="text" placeholder="Norādi adresi vai vietu" required>
+
+                <label for="roles">Nepieciešamās brīvprātīgo lomas</label>
+                <input id="roles" name="roles" type="text" placeholder="Piemēram, koordinators, 3 palīgi">
+
+                <label for="description">Apraksts</label>
+                <textarea id="description" name="description" rows="5" placeholder="Apraksti pasākuma mērķi un norisi" required></textarea>
+
+                <label for="event-images">Pasākuma attēli (līdz 5)</label>
+                <input id="event-images" name="event-images" type="file" accept="image/jpeg,image/png,image/webp" multiple data-image-input>
+                <p class="field-help">Attēli tiks automātiski apgriezti vienotā formātā priekšskatījumam.</p>
+                <div class="image-preview-grid" data-image-preview></div>
+
+                <button class="btn-primary" type="submit">Izveidot pasākumu</button>
+            </form>
+            <p class="form-note" data-form-message></p>
+        </section>
+    </main>
+
+    <footer>
+        <p>&copy; 2026 Voluntio. Visas tiesības aizsargātas.</p>
+    </footer>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="supabase-client.js"></script>
+    <script src="site.js"></script>
+</body>
+</html>

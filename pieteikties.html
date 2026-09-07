@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="lv">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pieteikties - Voluntio</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body data-auth-required="true">
+    <header>
+        <nav class="navbar">
+            <div class="logo">Voluntio</div>
+            <ul class="nav-links">
+                <li><a href="index.html">Sākumlapa</a></li>
+                <li><a href="pasakumi.html">Pasākumi</a></li>
+                <li><a href="pieteikties.html" class="active">Pieteikties</a></li>
+                <li><a href="admin.html">Admin panelis</a></li>
+            </ul>
+            <div class="auth-buttons">
+                <a href="login.html" class="btn-login">Pieteikties</a>
+                <a href="register.html" class="btn-register">Reģistrēties</a>
+            </div>
+        </nav>
+    </header>
+
+    <main class="events-main">
+        <section class="events-header">
+            <h1>Pieteikties pasākumam</h1>
+            <p>Aizpildi īso pieteikumu, lai pievienotos brīvprātīgo komandai.</p>
+        </section>
+        <section class="card simple-form-card">
+            <form class="simple-form" action="#" method="post" data-application-form>
+                <label for="event">Pasākums</label>
+                <select id="event" name="event" data-event-select required>
+                    <option value="">Ielādē pasākumus...</option>
+                </select>
+
+                <label for="name">Vārds, uzvārds</label>
+                <input id="name" name="name" type="text" placeholder="Ievadi savu vārdu" required>
+
+                <label for="email">E-pasts</label>
+                <input id="email" name="email" type="email" placeholder="vards@example.com" required>
+
+                <label for="message">Piezīme (nav obligāti)</label>
+                <textarea id="message" name="message" rows="4" placeholder="Papildu informācija"></textarea>
+
+                <button class="btn-primary" type="submit">Nosūtīt pieteikumu</button>
+            </form>
+            <p class="form-note" data-form-message></p>
+        </section>
+    </main>
+
+    <footer>
+        <p>&copy; 2026 Voluntio. Visas tiesības aizsargātas.</p>
+    </footer>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="supabase-client.js"></script>
+    <script src="site.js"></script>
+</body>
+</html>

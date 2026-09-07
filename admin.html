@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="lv">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin panelis - Voluntio</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body data-auth-required="true" data-role-required="admin">
+    <header>
+        <nav class="navbar">
+            <div class="logo">Voluntio</div>
+            <ul class="nav-links">
+                <li><a href="index.html">Sākumlapa</a></li>
+                <li><a href="pasakumi.html">Pasākumi</a></li>
+                <li><a href="create-event.html">Izveidot pasākumu</a></li>
+                <li><a href="pieteikties.html">Pieteikties</a></li>
+                <li><a href="admin.html" class="active">Admin panelis</a></li>
+            </ul>
+            <div class="auth-buttons">
+                <a href="login.html" class="btn-login">Pieteikties</a>
+                <a href="register.html" class="btn-register">Reģistrēties</a>
+            </div>
+        </nav>
+    </header>
+
+    <main class="events-main">
+        <section class="events-header">
+            <h1>Admin panelis</h1>
+            <p>Pārvaldi lietotājus, pasākumus un brīvprātīgo pieteikumus vienuviet.</p>
+        </section>
+
+        <section class="admin-stats">
+            <div class="stat-card"><strong>24</strong><span>Lietotāji</span></div>
+            <div class="stat-card"><strong>8</strong><span>Aktīvi pasākumi</span></div>
+            <div class="stat-card"><strong>37</strong><span>Brīvprātīgo pieteikumi</span></div>
+            <div class="stat-card"><strong>6</strong><span>Gaida apstiprinājumu</span></div>
+        </section>
+
+        <section class="admin-section">
+            <div class="section-heading">
+                <div>
+                    <h2>Ātrās darbības</h2>
+                    <p>Izveido jaunu pasākumu vai apskati platformas datus.</p>
+                </div>
+                <a href="create-event.html" class="btn-primary">+ Jauns pasākums</a>
+            </div>
+            <div class="admin-actions">
+                <a href="#users" class="card admin-action-card"><h3>Lietotāju saraksts</h3><p>Apskati reģistrētos brīvprātīgos un viņu lomas.</p></a>
+                <a href="#applications" class="card admin-action-card"><h3>Pieteikumu saraksts</h3><p>Pārbaudi un maini brīvprātīgo pieteikumu statusus.</p></a>
+                <a href="#events" class="card admin-action-card"><h3>Pasākumu pārvaldība</h3><p>Rediģē, publicē vai arhivē izveidotos pasākumus.</p></a>
+            </div>
+        </section>
+
+        <section class="admin-section admin-table-section">
+            <div class="section-heading"><div><h2>Jaunu pasākumu pieprasījumi</h2><p>Pārbaudi lietotāju iesniegtos pasākumus pirms publicēšanas.</p></div><span class="table-count">Gaida apstiprinājumu</span></div>
+            <div class="table-wrap">
+                <table>
+                    <thead><tr><th>Pasākums</th><th>Veidotājs</th><th>Datums</th><th>Attēli</th><th>Darbība</th></tr></thead>
+                    <tbody data-event-requests></tbody>
+                </table>
+            </div>
+        </section>
+
+        <section class="admin-section admin-table-section" id="applications">
+            <div class="section-heading"><div><h2>Jaunākie pieteikumi</h2><p>Brīvprātīgie, kas gaida atbildi.</p></div><span class="table-count">6 gaida</span></div>
+            <div class="table-wrap">
+                <table>
+                    <thead><tr><th>Brīvprātīgais</th><th>Pasākums</th><th>Datums</th><th>Statuss</th><th>Darbība</th></tr></thead>
+                    <tbody>
+                        <tr><td>Anna Kalniņa</td><td>Labdarības tirdziņš</td><td>15.04.2026</td><td><span class="status status-pending">Gaida</span></td><td><button class="table-button">Apstiprināt</button></td></tr>
+                        <tr><td>Jānis Bērziņš</td><td>Apkārtnes sakopšana</td><td>22.04.2026</td><td><span class="status status-approved">Apstiprināts</span></td><td><button class="table-button">Apskatīt</button></td></tr>
+                        <tr><td>Elīna Ozola</td><td>Zinātniskā konference</td><td>05.05.2026</td><td><span class="status status-pending">Gaida</span></td><td><button class="table-button">Apstiprināt</button></td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <section class="admin-section admin-table-section" id="users">
+            <div class="section-heading"><div><h2>Lietotāji</h2><p>Reģistrētie platformas dalībnieki.</p></div><span class="table-count">24 kopā</span></div>
+            <div class="table-wrap">
+                <table>
+                    <thead><tr><th>Vārds</th><th>E-pasts</th><th>Loma</th><th>Pieteikumi</th><th>Statuss</th></tr></thead>
+                    <tbody>
+                        <tr><td>Anna Kalniņa</td><td>anna@example.com</td><td>Brīvprātīgais</td><td>3</td><td><span class="status status-approved">Aktīvs</span></td></tr>
+                        <tr><td>Jānis Bērziņš</td><td>janis@example.com</td><td>Brīvprātīgais</td><td>1</td><td><span class="status status-approved">Aktīvs</span></td></tr>
+                        <tr><td>Admin Voluntio</td><td>admin@voluntio.lv</td><td>Administrators</td><td>-</td><td><span class="status status-approved">Aktīvs</span></td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <section class="admin-section admin-table-section" id="events">
+            <div class="section-heading"><div><h2>Pasākumi</h2><p>Kontrolē publicētos brīvprātīgo pasākumus.</p></div><a href="pasakumi.html" class="btn-card">Skatīt publiski</a></div>
+            <div class="table-wrap">
+                <table>
+                    <thead><tr><th>Pasākums</th><th>Organizators</th><th>Pieteikušies</th><th>Statuss</th><th>Darbība</th></tr></thead>
+                    <tbody>
+                        <tr><td>Skolas labdarības tirdziņš</td><td>Admin Voluntio</td><td>12 / 20</td><td><span class="status status-approved">Publicēts</span></td><td><button class="table-button">Rediģēt</button></td></tr>
+                        <tr><td>Apkārtnes sakopšanas talka</td><td>Admin Voluntio</td><td>8 / 15</td><td><span class="status status-approved">Publicēts</span></td><td><button class="table-button">Rediģēt</button></td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    </main>
+
+    <footer>
+        <p>&copy; 2026 Voluntio. Visas tiesības aizsargātas.</p>
+    </footer>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="supabase-client.js"></script>
+    <script src="site.js"></script>
+</body>
+</html>
