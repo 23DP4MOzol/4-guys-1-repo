@@ -30,7 +30,6 @@ Specializēts rīks brīvprātīgā darba organizēšanai, vadīšanai un admini
 - Atsauksmju un novērtējumu sistēma misiju izvērtēšanai.
 
 **Mērķauditorija:**
-- NVO.
 - Biedrības.
 - Pašvaldību iestādes.
 - Pasākumu rīkotāji.

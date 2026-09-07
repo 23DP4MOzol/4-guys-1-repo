@@ -3,14 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Voluntio – Pasākumu un Brīvprātīgo Platforma</title>
+    <title>Voluntio — Brīvprātīgo pasākumu platforma</title>
     <link rel="stylesheet" href="style.css">
 </head>
-<body>
-    <!-- Navigācijas josla -->
+<body class="home-page">
     <header>
-        <nav class="navbar">
-            <div class="logo">Voluntio</div>
+        <nav class="navbar" aria-label="Galvenā navigācija">
+            <a class="logo" href="index.html" aria-label="Voluntio sākumlapa">Voluntio</a>
             <ul class="nav-links">
                 <li><a href="index.html" class="active">Sākumlapa</a></li>
                 <li><a href="pasakumi.html">Pasākumi</a></li>
@@ -25,36 +24,84 @@
         </nav>
     </header>
 
-    <!-- Galvenais saturs -->
     <main>
-        <section class="hero">
-            <h1>Palīdzēsim kopā!</h1>
-            <p>Reģistrējies skolas un labdarības pasākumiem vai koordinē brīvprātīgos vienuviet.</p>
-            <a href="pasakumi.html" class="btn-primary">Apskatīt pasākumus</a>
-            <a href="create-event.html" class="btn-card">Izveidot pasākumu</a>
-        </section>
-
-        <section class="events-preview">
-            <h2>Tuvākie pasākumi</h2>
-            <div class="event-card-container">
-                <div class="card">
-                    <h3>Skolas labdarības tirdziņš</h3>
-                    <p>Palīdzēt organizēt un uzraudzīt stendus, pārdot pašceptus gardumus.</p>
-                    <span class="date">Datums: 15.04.2026</span>
-                </div>
-                <div class="card">
-                    <h3>Apkārtnes sakopšanas talka</h3>
-                    <p>Vākt atkritumus, grābt lapas un palīdzēt labot skolas soliņus.</p>
-                    <span class="date">Datums: 22.04.2026</span>
+        <section class="home-hero" aria-labelledby="home-title">
+            <div class="home-hero-copy">
+                <p class="eyebrow">Brīvprātīgais darbs, vienkārši</p>
+                <h1 id="home-title">Vieta, kur <em>palīdzība</em> kļūst par pārmaiņu.</h1>
+                <p class="home-lead">Voluntio savieno cilvēkus ar labdarības un skolas pasākumiem, kuros viņu laiks un prasmes ir patiesi vajadzīgas.</p>
+                <div class="hero-actions">
+                    <a href="pasakumi.html" class="btn-primary">Atrast pasākumu <span aria-hidden="true">→</span></a>
+                    <a href="register.html" class="hero-text-link">Pievienoties kopienai</a>
                 </div>
             </div>
+            <aside class="hero-summary" aria-label="Voluntio īsumā">
+                <span class="summary-label">Šonedēļ Voluntio</span>
+                <strong>12</strong>
+                <span>iespējas iesaistīties</span>
+                <div class="summary-rule"></div>
+                <p>Atrodi pasākumu savā apkārtnē un piesakies dažu minūšu laikā.</p>
+            </aside>
+        </section>
+
+        <section class="role-section" aria-labelledby="role-title">
+            <div class="section-intro">
+                <p class="eyebrow">Viena platforma, trīs iespējas</p>
+                <h2 id="role-title">Katram ir sava vieta, kur sākt.</h2>
+            </div>
+            <div class="role-grid">
+                <article class="role-card">
+                    <span class="role-number">01</span>
+                    <h3>Viesiem</h3>
+                    <p>Apskati pieejamos labdarības un skolas pasākumus bez reģistrācijas.</p>
+                    <a href="pasakumi.html">Skatīt pasākumus <span aria-hidden="true">→</span></a>
+                </article>
+                <article class="role-card featured-role">
+                    <span class="role-number">02</span>
+                    <h3>Brīvprātīgajiem</h3>
+                    <p>Izveido profilu, piesakies dalībai un seko līdzi saviem pieteikumiem.</p>
+                    <a href="register.html">Izveidot kontu <span aria-hidden="true">→</span></a>
+                </article>
+                <article class="role-card">
+                    <span class="role-number">03</span>
+                    <h3>Administratoriem</h3>
+                    <p>Veido pasākumus, pārskati pieteikumus un maini to statusus vienuviet.</p>
+                    <a href="admin.html">Atvērt paneli <span aria-hidden="true">→</span></a>
+                </article>
+            </div>
+        </section>
+
+        <section class="featured-events" aria-labelledby="featured-title">
+            <div class="section-intro section-intro-row">
+                <div><p class="eyebrow">Iespējas tuvumā</p><h2 id="featured-title">Sāc ar vienu labu darbu.</h2></div>
+                <a class="view-all-link" href="pasakumi.html">Visi pasākumi →</a>
+            </div>
+            <div class="home-event-grid">
+                <article class="home-event-card">
+                    <span class="event-kind">Labdarība</span>
+                    <p class="event-date">15. APRĪLIS · 10.00</p>
+                    <h3>Skolas labdarības tirdziņš</h3>
+                    <p>Palīdzi organizēt stendus un sagaidīt apmeklētājus.</p>
+                    <div><span>Skolas sporta zāle</span><a href="pieteikties.html" aria-label="Pieteikties Skolas labdarības tirdziņam">→</a></div>
+                </article>
+                <article class="home-event-card">
+                    <span class="event-kind">Talka</span>
+                    <p class="event-date">22. APRĪLIS · 11.00</p>
+                    <h3>Apkārtnes sakopšanas talka</h3>
+                    <p>Atjaunosim skolas parku un padarīsim to patīkamāku visiem.</p>
+                    <div><span>Skolas parks</span><a href="pieteikties.html" aria-label="Pieteikties Apkārtnes sakopšanas talkai">→</a></div>
+                </article>
+            </div>
+        </section>
+
+        <section class="home-cta">
+            <p class="eyebrow">Tavs laiks ir vērtīgs</p>
+            <h2>Vai esi gatavs radīt ko nozīmīgu?</h2>
+            <a href="register.html" class="btn-primary">Reģistrēties bez maksas <span aria-hidden="true">→</span></a>
         </section>
     </main>
 
-    <!-- Kājene -->
-    <footer>
-        <p>&copy; 2026 Voluntio. Visas tiesības aizsargātas.</p>
-    </footer>
+    <footer><p>&copy; 2026 Voluntio. Visas tiesības aizsargātas.</p></footer>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="supabase-client.js"></script>
     <script src="site.js"></script>

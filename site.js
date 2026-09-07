@@ -312,8 +312,28 @@ function setupLoginForm() {
         return;
     }
 
+    setupPasswordToggles(form);
+    document.querySelector('[data-forgot-password]')?.addEventListener('click', async () => {
+        const email = form.elements.email.value.trim();
+        if (!email) {
+            setFieldError(form, 'email', 'Vispirms ievadi savu e-pasta adresi.');
+            form.elements.email.focus();
+            return;
+        }
+        const { error } = await supabaseClient.auth.resetPasswordForEmail(email, { redirectTo: `${window.location.origin}${window.location.pathname.replace('login.html', 'login.html')}` });
+        showFormMessage(error ? error.message : 'Paroles atjaunošanas saite ir nosūtīta uz tavu e-pastu.', Boolean(error));
+    });
     form.addEventListener('submit', async (event) => {
         event.preventDefault();
+        clearFormErrors(form);
+        if (!validateEmail(form.elements.email.value.trim())) {
+            setFieldError(form, 'email', 'Ievadi derīgu e-pasta adresi.');
+            return;
+        }
+        if (!form.elements.password.value) {
+            setFieldError(form, 'password', 'Ievadi savu paroli.');
+            return;
+        }
         const { error } = await supabaseClient.auth.signInWithPassword({
             email: form.elements.email.value.trim(),
             password: form.elements.password.value
@@ -334,12 +354,28 @@ function setupRegistrationForm() {
         return;
     }
 
+    setupPasswordToggles(form);
+    const password = form.elements.password;
+    password.addEventListener('input', () => updatePasswordStrength(password.value, form));
     form.addEventListener('submit', async (event) => {
         event.preventDefault();
+        clearFormErrors(form);
+        const firstName = form.elements.firstName.value.trim();
+        const lastName = form.elements.lastName.value.trim();
+        const email = form.elements.email.value.trim();
+        const confirmation = form.elements.passwordConfirm.value;
+        let invalid = false;
+        if (!firstName) { setFieldError(form, 'firstName', 'Ievadi savu vārdu.'); invalid = true; }
+        if (!lastName) { setFieldError(form, 'lastName', 'Ievadi savu uzvārdu.'); invalid = true; }
+        if (!validateEmail(email)) { setFieldError(form, 'email', 'Ievadi derīgu e-pasta adresi.'); invalid = true; }
+        if (password.value.length < 8) { setFieldError(form, 'password', 'Parolei jābūt vismaz 8 rakstzīmes garai.'); invalid = true; }
+        if (password.value !== confirmation) { setFieldError(form, 'passwordConfirm', 'Paroles nesakrīt.'); invalid = true; }
+        if (!form.elements.terms.checked) { setFieldError(form, 'terms', 'Lai turpinātu, piekrīti noteikumiem.'); invalid = true; }
+        if (invalid) return;
         const { error } = await supabaseClient.auth.signUp({
-            email: form.elements.email.value.trim(),
-            password: form.elements.password.value,
-            options: { data: { full_name: form.elements.name.value.trim() } }
+            email,
+            password: password.value,
+            options: { data: { full_name: `${firstName} ${lastName}`, first_name: firstName, last_name: lastName, phone: form.elements.phone.value.trim() } }
         });
         if (error) {
             showFormMessage(error.message, true);
@@ -349,12 +385,201 @@ function setupRegistrationForm() {
     });
 }
 
+function validateEmail(email) {
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
+
+function setFieldError(form, name, message) {
+    const element = form.elements[name];
+    element?.classList.add('input-error');
+    const error = form.querySelector(`[data-error-for="${name}"]`);
+    if (error) error.textContent = message;
+}
+
+function clearFormErrors(form) {
+    form.querySelectorAll('.input-error').forEach((element) => element.classList.remove('input-error'));
+    form.querySelectorAll('[data-error-for]').forEach((element) => { element.textContent = ''; });
+    showFormMessage('');
+}
+
+function setupPasswordToggles(form) {
+    form.querySelectorAll('[data-password-toggle]').forEach((button) => {
+        button.addEventListener('click', () => {
+            const input = button.parentElement.querySelector('input');
+            const revealed = input.type === 'text';
+            input.type = revealed ? 'password' : 'text';
+            button.classList.toggle('is-revealed', !revealed);
+            button.setAttribute('aria-label', revealed ? 'Rādīt paroli' : 'Slēpt paroli');
+        });
+    });
+}
+
+function updatePasswordStrength(value, form) {
+    const bar = form.querySelector('[data-strength-bar]');
+    const hint = form.querySelector('[data-password-hint]');
+    if (!bar || !hint) return;
+    const score = [value.length >= 8, /[A-Z]/.test(value), /\d/.test(value), /[^A-Za-z0-9]/.test(value)].filter(Boolean).length;
+    const labels = ['Izmanto vismaz 8 rakstzīmes.', 'Vāja parole', 'Vidēji droša parole', 'Spēcīga parole', 'Ļoti spēcīga parole'];
+    const colors = ['#d92d20', '#d92d20', '#f79009', '#12b76a', '#12b76a'];
+    bar.style.width = `${score * 25}%`;
+    bar.style.background = colors[score];
+    hint.textContent = labels[score];
+}
+
+let activeLanguage = 'lv';
+
+function setupPagePreferences() {
+    const navbar = document.querySelector('.navbar');
+    const authContent = document.querySelector('.auth-content');
+    if ((!navbar && !authContent) || document.querySelector('.nav-preferences')) return;
+
+    const controls = document.createElement('div');
+    controls.className = 'nav-preferences';
+    controls.dataset.noTranslate = 'true';
+    const darkMode = sessionStorage.getItem('voluntio-theme') === 'dark';
+    document.body.classList.toggle('dark-mode', darkMode);
+    controls.innerHTML = `<button class="nav-preference" type="button" data-theme-toggle>${darkMode ? 'Gaišs' : 'Tumšs'}</button><button class="nav-preference" type="button" data-language-toggle>EN</button>`;
+    if (navbar) navbar.insertBefore(controls, navbar.querySelector('.auth-buttons'));
+    else authContent.append(controls);
+
+    controls.querySelector('[data-theme-toggle]').addEventListener('click', (event) => {
+        document.body.classList.toggle('dark-mode');
+        const isDark = document.body.classList.contains('dark-mode');
+        sessionStorage.setItem('voluntio-theme', isDark ? 'dark' : 'light');
+        event.currentTarget.textContent = isDark ? 'Gaišs' : 'Tumšs';
+    });
+    controls.querySelector('[data-language-toggle]').addEventListener('click', async (event) => {
+        const button = event.currentTarget;
+        const targetLanguage = activeLanguage === 'lv' ? 'en' : 'lv';
+        button.disabled = true;
+        button.textContent = '...';
+        try {
+            await translatePage(targetLanguage);
+            activeLanguage = targetLanguage;
+            button.textContent = targetLanguage === 'en' ? 'LV' : 'EN';
+            document.documentElement.lang = targetLanguage;
+        } catch (error) {
+            showFormMessage('Tulkojumu pašlaik neizdevās ielādēt.', true);
+            button.textContent = activeLanguage === 'lv' ? 'EN' : 'LV';
+        } finally {
+            button.disabled = false;
+        }
+    });
+}
+
+function setupNavigation() {
+    const navbar = document.querySelector('body:not(.auth-page) .navbar');
+    if (!navbar || navbar.querySelector('[data-menu-toggle]')) return;
+
+    const navLinks = navbar.querySelector('.nav-links');
+    const authButtons = navbar.querySelector('.auth-buttons');
+    if (!navLinks || !authButtons) return;
+
+    const menuId = 'primary-navigation';
+    const panel = document.createElement('div');
+    panel.className = 'mobile-nav-panel';
+    panel.id = menuId;
+    navbar.append(panel);
+    panel.append(navLinks);
+    const preferences = navbar.querySelector('.nav-preferences');
+    if (preferences) panel.append(preferences);
+    panel.append(authButtons);
+    const button = document.createElement('button');
+    button.className = 'menu-toggle';
+    button.type = 'button';
+    button.dataset.menuToggle = 'true';
+    button.setAttribute('aria-expanded', 'false');
+    button.setAttribute('aria-controls', menuId);
+    button.setAttribute('aria-label', 'Atvērt navigāciju');
+    button.innerHTML = '<span></span><span></span><span></span>';
+    navbar.querySelector('.logo').insertAdjacentElement('afterend', button);
+
+    const closeMenu = () => {
+        navbar.classList.remove('menu-open');
+        button.setAttribute('aria-expanded', 'false');
+        button.setAttribute('aria-label', 'Atvērt navigāciju');
+    };
+    button.addEventListener('click', () => {
+        const isOpen = navbar.classList.toggle('menu-open');
+        button.setAttribute('aria-expanded', String(isOpen));
+        button.setAttribute('aria-label', isOpen ? 'Aizvērt navigāciju' : 'Atvērt navigāciju');
+    });
+    navLinks.addEventListener('click', (event) => {
+        if (event.target.closest('a')) closeMenu();
+    });
+    document.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape' && navbar.classList.contains('menu-open')) {
+            closeMenu();
+            button.focus();
+        }
+    });
+}
+
+function removeTranslationArtifacts() {
+    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+    while (walker.nextNode()) {
+        const node = walker.currentNode;
+        if (node.parentElement?.closest('script, style')) continue;
+        node.nodeValue = node.nodeValue.replace(/[\[\]]{3,}/g, '');
+    }
+}
+
+async function translatePage(targetLanguage) {
+    const sourceLanguage = activeLanguage;
+    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, {
+        acceptNode(node) {
+            const parent = node.parentElement;
+            if (!node.nodeValue.trim() || !parent || parent.closest('script, style, [data-no-translate]')) return NodeFilter.FILTER_REJECT;
+            return NodeFilter.FILTER_ACCEPT;
+        }
+    });
+    const textNodes = [];
+    while (walker.nextNode()) textNodes.push(walker.currentNode);
+    const attributes = [...document.querySelectorAll('input[placeholder], textarea[placeholder], [title]')]
+        .filter((element) => !element.closest('[data-no-translate]'))
+        .flatMap((element) => ['placeholder', 'title'].filter((attribute) => element.hasAttribute(attribute)).map((attribute) => ({ element, attribute })));
+    const items = [...textNodes.map((node) => ({ node, text: node.nodeValue })), ...attributes.map(({ element, attribute }) => ({ element, attribute, text: element.getAttribute(attribute) }))];
+
+    // Larger parallel batches keep dense pages as responsive as the homepage,
+    // without reintroducing separator artifacts into translated content.
+    for (let index = 0; index < items.length; index += 24) {
+        const batch = items.slice(index, index + 24);
+        const results = await Promise.all(batch.map(async (item) => {
+            const original = item.text.trim();
+            return original ? translateWithApi(original, sourceLanguage, targetLanguage) : '';
+        }));
+        batch.forEach((item, itemIndex) => {
+            const original = item.text.trim();
+            const result = results[itemIndex];
+            if (!result) return;
+            if (item.node) item.node.nodeValue = item.text.replace(original, result);
+            else item.element.setAttribute(item.attribute, result);
+        });
+    }
+}
+
+async function translateWithApi(text, sourceLanguage, targetLanguage) {
+    const url = new URL('https://translate.googleapis.com/translate_a/single');
+    url.searchParams.set('client', 'gtx');
+    url.searchParams.set('sl', sourceLanguage);
+    url.searchParams.set('tl', targetLanguage);
+    url.searchParams.set('dt', 't');
+    url.searchParams.set('q', text);
+    const response = await fetch(url);
+    if (!response.ok) throw new Error('Translation request failed');
+    const data = await response.json();
+    return data[0].map((part) => part[0]).join('');
+}
+
 document.addEventListener('DOMContentLoaded', async () => {
+    removeTranslationArtifacts();
     const currentUser = await getCurrentUser();
     if (!await guardPage(currentUser)) {
         return;
     }
     updateAuthLinks(currentUser);
+    setupPagePreferences();
+    setupNavigation();
     setupLoginForm();
     setupRegistrationForm();
     setupEventForm();
