@@ -55,6 +55,13 @@
     gap: 2rem;
 }
 
+.no-results {
+    color: var(--text-muted);
+    grid-column: 1 / -1;
+    padding: 2rem;
+    text-align: center;
+}
+
 .event-card {
     background: var(--card-bg);
     backdrop-filter: blur(10px);

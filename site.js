@@ -290,8 +290,16 @@ async function renderCustomEvents() {
         return;
     }
 
+    const categoryKey = (category) => {
+        const normalized = String(category).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+        if (normalized.includes('talka')) return 'talka';
+        if (normalized.includes('labdar')) return 'labdariba';
+        if (normalized.includes('skol')) return 'skola';
+        return normalized;
+    };
+
     list.innerHTML = approvedEvents.map((event) => `
-        <div class="event-card">
+        <div class="event-card" data-category="${escapeHtml(categoryKey(event.category))}">
             <div class="card-badge">${escapeHtml(event.category)}</div>
             ${event.event_images?.[0] ? `<img class="event-image" src="${supabaseClient.storage.from('event-images').getPublicUrl(event.event_images[0].storage_path).data.publicUrl}" alt="${escapeHtml(event.title)}">` : ''}
             <h3>${escapeHtml(event.title)}</h3>
@@ -309,19 +317,39 @@ async function renderCustomEvents() {
 function setupEventFilters() {
     const search = document.querySelector('#searchInput');
     const category = document.querySelector('#categoryFilter');
-    if (!search || !category) return;
+    const section = document.querySelector('.events-grid-section');
+    if (!search || !category || !section) return;
 
     const normalize = (value) => String(value).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
     const filterEvents = () => {
         const query = normalize(search.value.trim());
         const selectedCategory = category.value;
-        document.querySelectorAll('.events-grid .event-card').forEach((card) => {
-            const title = normalize(card.querySelector('h3')?.textContent || '');
-            const cardCategory = normalize(card.dataset.category || card.querySelector('.card-badge')?.textContent || '');
-            const matchesSearch = !query || title.includes(query);
-            const matchesCategory = !selectedCategory || cardCategory.includes(selectedCategory);
+        let visibleCount = 0;
+        section.querySelectorAll('.events-grid .event-card').forEach((card) => {
+            const searchableText = normalize([
+                card.querySelector('h3')?.textContent,
+                card.querySelector('.card-desc')?.textContent,
+                card.querySelector('.card-meta')?.textContent
+            ].filter(Boolean).join(' '));
+            const cardCategory = normalize(card.dataset.category || '');
+            const matchesSearch = !query || searchableText.includes(query);
+            const matchesCategory = !selectedCategory || cardCategory === normalize(selectedCategory);
             card.hidden = !(matchesSearch && matchesCategory);
+            if (!card.hidden) visibleCount += 1;
         });
+
+        let emptyState = section.querySelector('.no-results');
+        if (!visibleCount) {
+            if (!emptyState) {
+                emptyState = document.createElement('p');
+                emptyState.className = 'no-results';
+                section.append(emptyState);
+            }
+            emptyState.textContent = 'Pēc izvēlētajiem kritērijiem pasākumi nav atrasti.';
+            emptyState.hidden = false;
+        } else if (emptyState) {
+            emptyState.hidden = true;
+        }
     };
     search.addEventListener('input', filterEvents);
     category.addEventListener('change', filterEvents);
@@ -611,6 +639,8 @@ async function translateWithApi(text, sourceLanguage, targetLanguage) {
 
 document.addEventListener('DOMContentLoaded', async () => {
     removeTranslationArtifacts();
+    // Initialize local cards before any remote Supabase request.
+    setupEventFilters();
     const currentUser = await getCurrentUser();
     if (!await guardPage(currentUser)) {
         return;
@@ -623,7 +653,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     setupEventForm();
     setupApplicationForm();
     setupAdminRequests(currentUser);
-    setupEventFilters();
     renderCustomEvents();
     setupFooterLinks();
 });
