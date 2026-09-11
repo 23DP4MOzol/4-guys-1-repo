@@ -303,6 +303,44 @@ async function renderCustomEvents() {
             <a href="pieteikties.html" class="btn-card">Pieteikties dalībai</a>
         </div>
     `).join('');
+    document.dispatchEvent(new Event('voluntio:events-rendered'));
+}
+
+function setupEventFilters() {
+    const search = document.querySelector('#searchInput');
+    const category = document.querySelector('#categoryFilter');
+    if (!search || !category) return;
+
+    const normalize = (value) => String(value).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    const filterEvents = () => {
+        const query = normalize(search.value.trim());
+        const selectedCategory = category.value;
+        document.querySelectorAll('.events-grid .event-card').forEach((card) => {
+            const title = normalize(card.querySelector('h3')?.textContent || '');
+            const cardCategory = normalize(card.dataset.category || card.querySelector('.card-badge')?.textContent || '');
+            const matchesSearch = !query || title.includes(query);
+            const matchesCategory = !selectedCategory || cardCategory.includes(selectedCategory);
+            card.hidden = !(matchesSearch && matchesCategory);
+        });
+    };
+    search.addEventListener('input', filterEvents);
+    category.addEventListener('change', filterEvents);
+    document.addEventListener('voluntio:events-rendered', filterEvents);
+    filterEvents();
+}
+
+function setupFooterLinks() {
+    document.querySelectorAll('[data-registration-form] a[href="#"]').forEach((link) => {
+        const label = link.textContent.toLowerCase();
+        link.href = label.includes('privātuma') ? 'privacy.html' : 'terms.html';
+    });
+    document.querySelectorAll('footer').forEach((footer) => {
+        if (footer.querySelector('.footer-links')) return;
+        const links = document.createElement('p');
+        links.className = 'footer-links';
+        links.innerHTML = '<a href="terms.html">Lietošanas noteikumi</a><span aria-hidden="true">·</span><a href="privacy.html">Privātuma politika</a>';
+        footer.append(links);
+    });
 }
 
 function setupLoginForm() {
@@ -585,5 +623,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     setupEventForm();
     setupApplicationForm();
     setupAdminRequests(currentUser);
+    setupEventFilters();
     renderCustomEvents();
+    setupFooterLinks();
 });
