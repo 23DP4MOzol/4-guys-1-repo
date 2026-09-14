@@ -263,69 +263,8 @@ create policy "Users delete their uploaded event images"
 on storage.objects for delete to authenticated
 using (bucket_id = 'event-images' and owner_id = auth.uid()::text);
 
--- Promote a trusted account to admin after creating it in Supabase Auth:
--- update public.profiles set role = 'admin' where id = 'AUTH_USER_UUID';
-
--- Seed test accounts. Run this section with Supabase SQL Editor privileges.
-delete from auth.users
-where email in ('admin.test@voluntio.lv', 'user.test@voluntio.lv')
-    and id not in (
-            '00000000-0000-4000-8000-000000000001',
-            '00000000-0000-4000-8000-000000000002'
-    );
-
-insert into auth.users (
-    id,
-    instance_id,
-    aud,
-    role,
-    email,
-    encrypted_password,
-    email_confirmed_at,
-    raw_app_meta_data,
-    raw_user_meta_data,
-    created_at,
-    updated_at
-)
-values
-(
-    '00000000-0000-4000-8000-000000000001',
-    '00000000-0000-0000-0000-000000000000',
-    'authenticated',
-    'authenticated',
-    'admin.test@voluntio.lv',
-    crypt('VoluntioTestAdmin2026', gen_salt('bf')),
-    now(),
-    '{"provider":"email","providers":["email"]}'::jsonb,
-    '{"full_name":"Test Admin"}'::jsonb,
-    now(),
-    now()
-),
-(
-    '00000000-0000-4000-8000-000000000002',
-    '00000000-0000-0000-0000-000000000000',
-    'authenticated',
-    'authenticated',
-    'user.test@voluntio.lv',
-    crypt('VoluntioTestUser2026', gen_salt('bf')),
-    now(),
-    '{"provider":"email","providers":["email"]}'::jsonb,
-    '{"full_name":"Test User"}'::jsonb,
-    now(),
-    now()
-)
-on conflict (id) do update set
-    instance_id = excluded.instance_id,
-    email = excluded.email,
-    encrypted_password = excluded.encrypted_password,
-    email_confirmed_at = excluded.email_confirmed_at,
-    raw_user_meta_data = excluded.raw_user_meta_data,
-    updated_at = now();
-
-insert into public.profiles (id, full_name, role)
-values
-    ('00000000-0000-4000-8000-000000000001', 'Test Admin', 'admin'),
-    ('00000000-0000-4000-8000-000000000002', 'Test User', 'user')
-on conflict (id) do update set
-    full_name = excluded.full_name,
-    role = excluded.role;
+-- Create Auth users from Supabase Dashboard > Authentication > Users.
+-- Do not insert directly into auth.users; Supabase Auth manages that table.
+-- After creating an account, promote it with:
+-- update public.profiles set role = 'admin'
+-- where id = (select id from auth.users where email = 'admin@example.com');
