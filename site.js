@@ -145,10 +145,16 @@ function setupEventForm() {
             window.location.href = 'login.html';
             return;
         }
+        const title = form.elements.title.value.trim();
+        if (title.length < 3 || title.length > 120) {
+            showFormMessage('Pasākuma nosaukumam jābūt 3–120 rakstzīmes garam.', true);
+            form.elements.title.focus();
+            return;
+        }
 
         const { data: eventRecord, error } = await supabaseClient.from('events').insert({
             creator_id: currentUser.id,
-            title: form.elements.title.value.trim(),
+            title,
             category: form.elements.category.value,
             event_date: form.elements.date.value,
             location: form.elements.location.value.trim(),
@@ -309,6 +315,19 @@ function formatAdminDate(value) {
 
 function adminEmptyRow(columns, text) {
     return `<tr><td colspan="${columns}">${escapeHtml(text)}</td></tr>`;
+}
+
+function setupAdminFilters() {
+    document.querySelectorAll('[data-admin-filter]').forEach((input) => {
+        input.addEventListener('input', () => {
+            const target = document.querySelector(`[data-admin-${input.dataset.filterTarget}]`);
+            if (!target) return;
+            const query = input.value.trim().toLowerCase();
+            target.querySelectorAll('tr').forEach((row) => {
+                row.hidden = Boolean(query) && !row.textContent.toLowerCase().includes(query);
+            });
+        });
+    });
 }
 
 async function setupAdminDashboard(currentUser) {
@@ -763,6 +782,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     setupApplicationForm();
     setupAdminRequests(currentUser);
     setupAdminDashboard(currentUser);
+    setupAdminFilters();
     setupHomeSummary();
     renderCustomEvents();
     setupFooterLinks();

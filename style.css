@@ -419,6 +419,26 @@ body {
     padding: 0.4rem 0.7rem;
 }
 
+.admin-table-tools {
+    align-items: center;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.65rem;
+    justify-content: flex-end;
+}
+
+.admin-table-tools input {
+    background: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 7px;
+    color: var(--text-main);
+    font: inherit;
+    font-size: 0.82rem;
+    min-height: 2.15rem;
+    padding: 0.4rem 0.65rem;
+    width: 12rem;
+}
+
 .table-wrap {
     overflow-x: auto;
     background: var(--card-bg);
