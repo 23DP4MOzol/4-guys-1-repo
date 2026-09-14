@@ -55,8 +55,9 @@ function updateAuthLinks(currentUser) {
     }
 
     const displayName = currentUser.profile?.full_name || currentUser.email.split('@')[0];
+    const initials = displayName.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join('').toUpperCase();
     authButtons.innerHTML = `
-        <span class="user-greeting">Sveiks, ${escapeHtml(displayName)}</span>
+        <span class="user-profile"><span class="user-avatar" aria-hidden="true">${escapeHtml(initials || 'V')}</span><span class="user-greeting">Sveiks, ${escapeHtml(displayName)}</span></span>
         <button class="btn-login logout-button" type="button">Iziet</button>
     `;
 
@@ -64,6 +65,27 @@ function updateAuthLinks(currentUser) {
         await supabaseClient.auth.signOut();
         window.location.href = 'index.html';
     });
+}
+
+async function setupHomeSummary() {
+    const countElement = document.querySelector('[data-home-week-count]');
+    if (!countElement) return;
+
+    const today = new Date();
+    const weekStart = new Date(today);
+    const day = weekStart.getDay() || 7;
+    weekStart.setDate(weekStart.getDate() - day + 1);
+    const nextWeek = new Date(weekStart);
+    nextWeek.setDate(nextWeek.getDate() + 7);
+    const toDate = (date) => date.toISOString().slice(0, 10);
+    const { count, error } = await supabaseClient
+        .from('events')
+        .select('id', { count: 'exact', head: true })
+        .eq('status', 'approved')
+        .gte('event_date', toDate(weekStart))
+        .lt('event_date', toDate(nextWeek));
+
+    countElement.textContent = error ? '0' : String(count || 0);
 }
 
 function createCroppedPreview(file) {
@@ -193,6 +215,10 @@ async function setupApplicationForm() {
     form.addEventListener('submit', async (event) => {
         event.preventDefault();
         const currentUser = await getCurrentUser();
+        if (!currentUser) {
+            window.location.href = 'login.html';
+            return;
+        }
         const { error: applicationError } = await supabaseClient.from('event_applications').insert({
             event_id: select.value,
             volunteer_id: currentUser.id,
@@ -253,29 +279,103 @@ async function setupAdminRequests(currentUser) {
             <td>${escapeHtml(request.profiles?.full_name || request.creator_id)}</td>
             <td>${escapeHtml(request.event_date)}</td>
             <td>${(request.event_images || []).length} / 5</td>
-            <td><button class="table-button" type="button" data-approve-event="${request.id}">Apstiprināt</button></td>
+            <td><button class="table-button" type="button" data-event-action="approved" data-event-id="${request.id}">Apstiprināt</button> <button class="table-button table-button-danger" type="button" data-event-action="rejected" data-event-id="${request.id}">Noraidīt</button></td>
         </tr>
     `).join('') : '<tr><td colspan="5">Jaunu pasākumu pieprasījumu nav.</td></tr>';
 
-    list.querySelectorAll('[data-approve-event]').forEach((button) => {
+    list.querySelectorAll('[data-event-action]').forEach((button) => {
         button.addEventListener('click', async () => {
+            button.disabled = true;
             const { error: updateError } = await supabaseClient.from('events').update({
-                status: 'approved',
+                status: button.dataset.eventAction,
                 reviewed_by: currentUser.id,
                 reviewed_at: new Date().toISOString()
-            }).eq('id', button.dataset.approveEvent);
+            }).eq('id', button.dataset.eventId);
             if (updateError) {
+                button.disabled = false;
                 showFormMessage(updateError.message, true);
                 return;
             }
-            setupAdminRequests(currentUser);
+            await setupAdminRequests(currentUser);
+            await setupAdminDashboard(currentUser);
+        });
+    });
+}
+
+function formatAdminDate(value) {
+    if (!value) return '-';
+    return new Intl.DateTimeFormat('lv-LV', { dateStyle: 'short' }).format(new Date(`${value}T00:00:00`));
+}
+
+function adminEmptyRow(columns, text) {
+    return `<tr><td colspan="${columns}">${escapeHtml(text)}</td></tr>`;
+}
+
+async function setupAdminDashboard(currentUser) {
+    if (!document.querySelector('[data-admin-stat]') || currentUser?.profile?.role !== 'admin') return;
+
+    const [usersResult, eventsResult, applicationsResult, pendingResult] = await Promise.all([
+        supabaseClient.from('profiles').select('id, full_name, role, created_at').order('created_at', { ascending: false }),
+        supabaseClient.from('events').select('id, title, status, event_date, profiles(full_name), event_applications(id)').order('event_date', { ascending: true }),
+        supabaseClient.from('event_applications').select('id, status, created_at, volunteer_id, profiles(id, full_name), events(title, event_date)').order('created_at', { ascending: false }),
+        supabaseClient.from('events').select('id', { count: 'exact', head: true }).eq('status', 'pending')
+    ]);
+
+    const users = usersResult.data || [];
+    const events = eventsResult.data || [];
+    const applications = applicationsResult.data || [];
+    const activeEvents = events.filter((event) => event.status === 'approved');
+    const setStat = (name, value) => {
+        const element = document.querySelector(`[data-admin-stat="${name}"]`);
+        if (element) element.textContent = String(value);
+    };
+    const setCount = (name, value) => {
+        const element = document.querySelector(`[data-admin-count="${name}"]`);
+        if (element) element.textContent = `${value} kopā`;
+    };
+    setStat('users', users.length);
+    setStat('events', activeEvents.length);
+    setStat('applications', applications.length);
+    setStat('pending', pendingResult.count || 0);
+    setCount('users', users.length);
+    setCount('events', events.length);
+    setCount('applications', applications.length);
+
+    const userList = document.querySelector('[data-admin-users]');
+    if (userList) userList.innerHTML = users.length ? users.map((user) => `
+        <tr><td>${escapeHtml(user.full_name)}</td><td title="${escapeHtml(user.id)}">${escapeHtml(user.id.slice(0, 8))}...</td><td>${user.role === 'admin' ? 'Administrators' : 'Brīvprātīgais'}</td><td>${applications.filter((application) => application.profiles?.id === user.id).length}</td><td><span class="status status-approved">Aktīvs</span></td></tr>
+    `).join('') : adminEmptyRow(5, 'Lietotāju nav.');
+
+    const applicationList = document.querySelector('[data-admin-applications]');
+    if (applicationList) applicationList.innerHTML = applications.length ? applications.slice(0, 20).map((application) => `
+        <tr><td>${escapeHtml(application.profiles?.full_name || 'Nezināms lietotājs')}</td><td>${escapeHtml(application.events?.title || 'Dzēsts pasākums')}</td><td>${formatAdminDate(application.events?.event_date)}</td><td><span class="status status-${application.status === 'approved' ? 'approved' : application.status === 'rejected' ? 'rejected' : 'pending'}">${application.status === 'approved' ? 'Apstiprināts' : application.status === 'rejected' ? 'Noraidīts' : 'Gaida'}</span></td><td>${application.status === 'pending' ? `<button class="table-button" type="button" data-application-action="approved" data-application-id="${application.id}">Apstiprināt</button> <button class="table-button table-button-danger" type="button" data-application-action="rejected" data-application-id="${application.id}">Noraidīt</button>` : '-'}</td></tr>
+    `).join('') : adminEmptyRow(5, 'Pieteikumu nav.');
+
+    const eventList = document.querySelector('[data-admin-events]');
+    if (eventList) eventList.innerHTML = events.length ? events.map((event) => `
+        <tr><td>${escapeHtml(event.title)}</td><td>${escapeHtml(event.profiles?.full_name || 'Nezināms lietotājs')}</td><td>${(event.event_applications || []).length}</td><td><span class="status status-${event.status === 'approved' ? 'approved' : event.status === 'rejected' ? 'rejected' : 'pending'}">${event.status === 'approved' ? 'Publicēts' : event.status === 'rejected' ? 'Noraidīts' : 'Gaida'}</span></td><td>${formatAdminDate(event.event_date)}</td></tr>
+    `).join('') : adminEmptyRow(5, 'Pasākumu nav.');
+
+    applicationList?.querySelectorAll('[data-application-action]').forEach((button) => {
+        button.addEventListener('click', async () => {
+            button.disabled = true;
+            const { error } = await supabaseClient.from('event_applications').update({
+                status: button.dataset.applicationAction
+            }).eq('id', button.dataset.applicationId);
+            if (error) {
+                button.disabled = false;
+                showFormMessage(error.message, true);
+                return;
+            }
+            await setupAdminDashboard(currentUser);
         });
     });
 }
 
 async function renderCustomEvents() {
     const list = document.querySelector('[data-custom-events]');
-    if (!list) {
+    const homeList = document.querySelector('[data-home-events]');
+    if (!list && !homeList) {
         return;
     }
 
@@ -298,7 +398,7 @@ async function renderCustomEvents() {
         return normalized;
     };
 
-    list.innerHTML = approvedEvents.map((event) => `
+    if (list) list.innerHTML = approvedEvents.length ? approvedEvents.map((event) => `
         <div class="event-card" data-category="${escapeHtml(categoryKey(event.category))}">
             <div class="card-badge">${escapeHtml(event.category)}</div>
             ${event.event_images?.[0] ? `<img class="event-image" src="${supabaseClient.storage.from('event-images').getPublicUrl(event.event_images[0].storage_path).data.publicUrl}" alt="${escapeHtml(event.title)}">` : ''}
@@ -310,7 +410,16 @@ async function renderCustomEvents() {
             </div>
             <a href="pieteikties.html" class="btn-card">Pieteikties dalībai</a>
         </div>
-    `).join('');
+    `).join('') : '<p class="no-results">Apstiprinātu pasākumu pašlaik nav.</p>';
+    if (homeList) homeList.innerHTML = approvedEvents.length ? approvedEvents.slice(0, 2).map((event) => `
+        <article class="home-event-card">
+            <span class="event-kind">${escapeHtml(event.category)}</span>
+            <p class="event-date">${escapeHtml(event.event_date)}</p>
+            <h3>${escapeHtml(event.title)}</h3>
+            <p>${escapeHtml(event.description)}</p>
+            <div><span>${escapeHtml(event.location)}</span><a href="pieteikties.html" aria-label="Pieteikties ${escapeHtml(event.title)}">→</a></div>
+        </article>
+    `).join('') : '<p class="no-results">Apstiprinātu pasākumu pašlaik nav.</p>';
     document.dispatchEvent(new Event('voluntio:events-rendered'));
 }
 
@@ -653,6 +762,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     setupEventForm();
     setupApplicationForm();
     setupAdminRequests(currentUser);
+    setupAdminDashboard(currentUser);
+    setupHomeSummary();
     renderCustomEvents();
     setupFooterLinks();
 });

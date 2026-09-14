@@ -31,10 +31,10 @@
         </section>
 
         <section class="admin-stats">
-            <div class="stat-card"><strong>24</strong><span>Lietotāji</span></div>
-            <div class="stat-card"><strong>8</strong><span>Aktīvi pasākumi</span></div>
-            <div class="stat-card"><strong>37</strong><span>Brīvprātīgo pieteikumi</span></div>
-            <div class="stat-card"><strong>6</strong><span>Gaida apstiprinājumu</span></div>
+            <div class="stat-card"><strong data-admin-stat="users">0</strong><span>Lietotāji</span></div>
+            <div class="stat-card"><strong data-admin-stat="events">0</strong><span>Aktīvi pasākumi</span></div>
+            <div class="stat-card"><strong data-admin-stat="applications">0</strong><span>Brīvprātīgo pieteikumi</span></div>
+            <div class="stat-card"><strong data-admin-stat="pending">0</strong><span>Gaida apstiprinājumu</span></div>
         </section>
 
         <section class="admin-section">
@@ -63,42 +63,31 @@
         </section>
 
         <section class="admin-section admin-table-section" id="applications">
-            <div class="section-heading"><div><h2>Jaunākie pieteikumi</h2><p>Brīvprātīgie, kas gaida atbildi.</p></div><span class="table-count">6 gaida</span></div>
+            <div class="section-heading"><div><h2>Jaunākie pieteikumi</h2><p>Brīvprātīgie, kas gaida atbildi.</p></div><span class="table-count" data-admin-count="applications">0 kopā</span></div>
             <div class="table-wrap">
                 <table>
                     <thead><tr><th>Brīvprātīgais</th><th>Pasākums</th><th>Datums</th><th>Statuss</th><th>Darbība</th></tr></thead>
-                    <tbody>
-                        <tr><td>Anna Kalniņa</td><td>Labdarības tirdziņš</td><td>15.04.2026</td><td><span class="status status-pending">Gaida</span></td><td><button class="table-button">Apstiprināt</button></td></tr>
-                        <tr><td>Jānis Bērziņš</td><td>Apkārtnes sakopšana</td><td>22.04.2026</td><td><span class="status status-approved">Apstiprināts</span></td><td><button class="table-button">Apskatīt</button></td></tr>
-                        <tr><td>Elīna Ozola</td><td>Zinātniskā konference</td><td>05.05.2026</td><td><span class="status status-pending">Gaida</span></td><td><button class="table-button">Apstiprināt</button></td></tr>
-                    </tbody>
+                    <tbody data-admin-applications></tbody>
                 </table>
             </div>
         </section>
 
         <section class="admin-section admin-table-section" id="users">
-            <div class="section-heading"><div><h2>Lietotāji</h2><p>Reģistrētie platformas dalībnieki.</p></div><span class="table-count">24 kopā</span></div>
+            <div class="section-heading"><div><h2>Lietotāji</h2><p>Reģistrētie platformas dalībnieki.</p></div><span class="table-count" data-admin-count="users">0 kopā</span></div>
             <div class="table-wrap">
                 <table>
-                    <thead><tr><th>Vārds</th><th>E-pasts</th><th>Loma</th><th>Pieteikumi</th><th>Statuss</th></tr></thead>
-                    <tbody>
-                        <tr><td>Anna Kalniņa</td><td>anna@example.com</td><td>Brīvprātīgais</td><td>3</td><td><span class="status status-approved">Aktīvs</span></td></tr>
-                        <tr><td>Jānis Bērziņš</td><td>janis@example.com</td><td>Brīvprātīgais</td><td>1</td><td><span class="status status-approved">Aktīvs</span></td></tr>
-                        <tr><td>Admin Voluntio</td><td>admin@voluntio.lv</td><td>Administrators</td><td>-</td><td><span class="status status-approved">Aktīvs</span></td></tr>
-                    </tbody>
+                    <thead><tr><th>Vārds</th><th>Lietotāja ID</th><th>Loma</th><th>Pieteikumi</th><th>Statuss</th></tr></thead>
+                    <tbody data-admin-users></tbody>
                 </table>
             </div>
         </section>
 
         <section class="admin-section admin-table-section" id="events">
-            <div class="section-heading"><div><h2>Pasākumi</h2><p>Kontrolē publicētos brīvprātīgo pasākumus.</p></div><a href="pasakumi.html" class="btn-card">Skatīt publiski</a></div>
+            <div class="section-heading"><div><h2>Pasākumi</h2><p>Kontrolē publicētos brīvprātīgo pasākumus.</p></div><span class="table-count" data-admin-count="events">0 kopā</span></div>
             <div class="table-wrap">
                 <table>
-                    <thead><tr><th>Pasākums</th><th>Organizators</th><th>Pieteikušies</th><th>Statuss</th><th>Darbība</th></tr></thead>
-                    <tbody>
-                        <tr><td>Skolas labdarības tirdziņš</td><td>Admin Voluntio</td><td>12 / 20</td><td><span class="status status-approved">Publicēts</span></td><td><button class="table-button">Rediģēt</button></td></tr>
-                        <tr><td>Apkārtnes sakopšanas talka</td><td>Admin Voluntio</td><td>8 / 15</td><td><span class="status status-approved">Publicēts</span></td><td><button class="table-button">Rediģēt</button></td></tr>
-                    </tbody>
+                    <thead><tr><th>Pasākums</th><th>Organizators</th><th>Pieteikušies</th><th>Statuss</th><th>Datums</th></tr></thead>
+                    <tbody data-admin-events></tbody>
                 </table>
             </div>
         </section>

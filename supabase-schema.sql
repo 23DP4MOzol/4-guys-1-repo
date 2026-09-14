@@ -227,8 +227,16 @@ using (bucket_id = 'event-images' and owner_id = auth.uid()::text);
 -- update public.profiles set role = 'admin' where id = 'AUTH_USER_UUID';
 
 -- Seed test accounts. Run this section with Supabase SQL Editor privileges.
+delete from auth.users
+where email in ('admin.test@voluntio.lv', 'user.test@voluntio.lv')
+    and id not in (
+            '00000000-0000-4000-8000-000000000001',
+            '00000000-0000-4000-8000-000000000002'
+    );
+
 insert into auth.users (
     id,
+    instance_id,
     aud,
     role,
     email,
@@ -242,6 +250,7 @@ insert into auth.users (
 values
 (
     '00000000-0000-4000-8000-000000000001',
+    '00000000-0000-0000-0000-000000000000',
     'authenticated',
     'authenticated',
     'admin.test@voluntio.lv',
@@ -254,6 +263,7 @@ values
 ),
 (
     '00000000-0000-4000-8000-000000000002',
+    '00000000-0000-0000-0000-000000000000',
     'authenticated',
     'authenticated',
     'user.test@voluntio.lv',
@@ -265,6 +275,7 @@ values
     now()
 )
 on conflict (id) do update set
+    instance_id = excluded.instance_id,
     email = excluded.email,
     encrypted_password = excluded.encrypted_password,
     email_confirmed_at = excluded.email_confirmed_at,
