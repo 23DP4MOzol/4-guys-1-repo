@@ -35,6 +35,7 @@
             <div class="stat-card"><strong data-admin-stat="events">0</strong><span>Aktīvi pasākumi</span></div>
             <div class="stat-card"><strong data-admin-stat="applications">0</strong><span>Brīvprātīgo pieteikumi</span></div>
             <div class="stat-card"><strong data-admin-stat="pending">0</strong><span>Gaida apstiprinājumu</span></div>
+            <div class="stat-card"><strong data-admin-stat="reports">0</strong><span>Atvērti ziņojumi</span></div>
         </section>
 
         <section class="admin-section">
@@ -70,6 +71,16 @@
                     <tbody data-admin-applications></tbody>
                 </table>
             </div>
+        </section>
+
+        <section class="admin-section admin-table-section" id="reports">
+            <div class="section-heading"><div><h2>Drošības ziņojumi</h2><p>Izvērtē lietotāju ziņojumus par pasākumiem un kontiem.</p></div><span class="table-count" data-admin-count="reports">0 atvērti</span></div>
+            <div class="table-wrap"><table><thead><tr><th>Prioritāte</th><th>Iemesls</th><th>Pasākums</th><th>Laiks</th><th>Statuss</th><th>Darbība</th></tr></thead><tbody data-admin-reports></tbody></table></div>
+        </section>
+
+        <section class="admin-section admin-table-section" id="audit-log">
+            <div class="section-heading"><div><h2>Audita žurnāls</h2><p>Privilegētās darbības un drošības notikumi.</p></div></div>
+            <div class="table-wrap"><table><thead><tr><th>Laiks</th><th>Darbība</th><th>Objekts</th><th>Sīkāka informācija</th></tr></thead><tbody data-admin-audit></tbody></table></div>
         </section>
 
         <section class="admin-section admin-table-section" id="users">

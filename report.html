@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="lv">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ziņot par saturu - Voluntio</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body data-auth-required="true">
+    <header><nav class="navbar"><a class="logo" href="index.html">Voluntio</a><ul class="nav-links"><li><a href="index.html">Sākumlapa</a></li><li><a href="pasakumi.html">Pasākumi</a></li><li><a href="profile.html">Profils</a></li><li><a href="admin.html">Admin panelis</a></li></ul><div class="auth-buttons"><a href="login.html" class="btn-login">Pieteikties</a><a href="register.html" class="btn-register">Reģistrēties</a></div></nav></header>
+    <main class="events-main">
+        <section class="events-header"><h1>Ziņot par saturu</h1><p>Palīdzi mums uzturēt Voluntio drošu un uzticamu.</p></section>
+        <section class="card simple-form-card">
+            <form class="simple-form" data-report-form>
+                <label for="report-event">Pasākums</label>
+                <select id="report-event" name="eventId" data-report-event required><option value="">Izvēlies pasākumu</option></select>
+                <label for="report-reason">Iemesls</label>
+                <select id="report-reason" name="reason" required><option value="fake_event">Viltus pasākums</option><option value="harassment">Uzmākšanās</option><option value="scam">Krāpniecība</option><option value="inappropriate">Nepiemērots saturs</option><option value="dangerous_location">Bīstama vieta</option><option value="other">Cits</option></select>
+                <label for="report-evidence">Apraksts vai pierādījumi</label>
+                <textarea id="report-evidence" name="evidence" rows="6" maxlength="4000" placeholder="Apraksti problēmu pēc iespējas precīzāk."></textarea>
+                <button class="btn-primary" type="submit">Nosūtīt ziņojumu</button>
+                <p class="form-note" data-form-message></p>
+            </form>
+        </section>
+    </main>
+    <footer><p>&copy; 2026 Voluntio. Visas tiesības aizsargātas.</p></footer>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script><script src="supabase-client.js"></script><script src="site.js"></script>
+</body>
+</html>

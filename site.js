@@ -62,7 +62,7 @@ function updateAuthLinks(currentUser) {
     const displayName = currentUser.profile?.full_name || currentUser.email.split('@')[0];
     const initials = displayName.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join('').toUpperCase();
     authButtons.innerHTML = `
-        <span class="user-profile"><span class="user-avatar" aria-hidden="true">${escapeHtml(initials || 'V')}</span><span class="user-greeting">Sveiks, ${escapeHtml(displayName)}</span></span>
+        <a class="user-profile" href="profile.html" aria-label="Atvērt profilu"><span class="user-avatar" aria-hidden="true">${escapeHtml(initials || 'V')}</span><span class="user-greeting">Sveiks, ${escapeHtml(displayName)}</span></a>
         <button class="btn-login logout-button" type="button">Iziet</button>
     `;
 
@@ -127,6 +127,33 @@ function setupEventForm() {
         return;
     }
 
+    const roleBuilder = form.querySelector('[data-role-builder]');
+    const rolesField = form.elements.roles;
+
+    const syncRoles = () => {
+        rolesField.value = [...roleBuilder.querySelectorAll('.role-row')].map((row) => {
+            const name = row.querySelector('[name="role-name"]').value.trim();
+            const count = Math.max(0, Number(row.querySelector('[name="role-count"]').value) || 0);
+            return name ? `${name} (${count})` : '';
+        }).filter(Boolean).join(', ');
+    };
+    roleBuilder.addEventListener('input', syncRoles);
+    roleBuilder.addEventListener('click', (event) => {
+        const remove = event.target.closest('[data-remove-role]');
+        if (!remove) return;
+        remove.closest('.role-row').remove();
+        roleBuilder.querySelectorAll('[data-remove-role]').forEach((button) => { button.disabled = roleBuilder.children.length === 1; });
+        syncRoles();
+    });
+    form.querySelector('[data-add-role]').addEventListener('click', () => {
+        const row = roleBuilder.querySelector('.role-row').cloneNode(true);
+        row.querySelector('[name="role-name"]').value = '';
+        row.querySelector('[name="role-count"]').value = '0';
+        row.querySelector('[data-remove-role]').disabled = false;
+        roleBuilder.append(row);
+        row.querySelector('[name="role-name"]').focus();
+    });
+
     input.addEventListener('change', async () => {
         const files = Array.from(input.files).slice(0, 5);
         if (input.files.length > 5) {
@@ -173,6 +200,7 @@ function setupEventForm() {
             return;
         }
 
+        const uploadedPaths = [];
         for (let index = 0; index < croppedImages.length; index += 1) {
             const path = `${currentUser.id}/${eventRecord.id}/${index + 1}.jpg`;
             const upload = await supabaseClient.storage.from('event-images').upload(path, dataUrlToBlob(croppedImages[index]), {
@@ -180,15 +208,19 @@ function setupEventForm() {
                 upsert: false
             });
             if (upload.error) {
+                await supabaseClient.from('events').delete().eq('id', eventRecord.id);
                 showFormMessage(`Attēla augšupielāde neizdevās: ${upload.error.message}`, true);
                 return;
             }
+            uploadedPaths.push(path);
             const imageRecord = await supabaseClient.from('event_images').insert({
                 event_id: eventRecord.id,
                 storage_path: path,
                 sort_order: index
             });
             if (imageRecord.error) {
+                await supabaseClient.storage.from('event-images').remove(uploadedPaths);
+                await supabaseClient.from('events').delete().eq('id', eventRecord.id);
                 showFormMessage(`Attēla saglabāšana neizdevās: ${imageRecord.error.message}`, true);
                 return;
             }
@@ -196,6 +228,10 @@ function setupEventForm() {
 
         showFormMessage('Pasākuma pieprasījums nosūtīts adminam apstiprināšanai.');
         form.reset();
+        roleBuilder.innerHTML = roleBuilder.children[0]?.outerHTML || '';
+        roleBuilder.querySelectorAll('input').forEach((field) => { field.value = field.name === 'role-count' ? '0' : ''; });
+        roleBuilder.querySelector('[data-remove-role]').disabled = true;
+        syncRoles();
         preview.innerHTML = '';
     });
 }
@@ -241,6 +277,37 @@ async function setupApplicationForm() {
             return;
         }
         showFormMessage('Pieteikums nosūtīts pasākuma organizatoram.');
+        form.reset();
+    });
+}
+
+async function setupReportForm() {
+    const form = document.querySelector('[data-report-form]');
+    const select = document.querySelector('[data-report-event]');
+    if (!form || !select) return;
+    const currentUser = await getCurrentUser();
+    if (!currentUser) return;
+    const { data: events, error } = await supabaseClient.from('events').select('id, title').eq('status', 'approved').order('title');
+    if (error) {
+        showFormMessage(error.message, true);
+        return;
+    }
+    const requestedEvent = new URLSearchParams(window.location.search).get('event');
+    select.innerHTML = events.length ? events.map((event) => `<option value="${event.id}" ${event.id === requestedEvent ? 'selected' : ''}>${escapeHtml(event.title)}</option>`).join('') : '<option value="">Nav pieejamu pasākumu</option>';
+    form.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const { data: report, error: reportError } = await supabaseClient.from('reports').insert({
+            reporter_id: currentUser.id,
+            event_id: select.value || null,
+            reason: form.elements.reason.value,
+            evidence: form.elements.evidence.value.trim()
+        }).select('id').single();
+        if (reportError) {
+            showFormMessage(reportError.message, true);
+            return;
+        }
+        await supabaseClient.from('audit_logs').insert({ actor_id: currentUser.id, action: 'submitted_report', entity_type: 'report', entity_id: report.id });
+        showFormMessage('Ziņojums nosūtīts administratoram.');
         form.reset();
     });
 }
@@ -344,6 +411,10 @@ async function setupAdminDashboard(currentUser) {
         supabaseClient.from('event_applications').select('id, status, created_at, volunteer_id, profiles(id, full_name), events(title, event_date)').order('created_at', { ascending: false }),
         supabaseClient.from('events').select('id', { count: 'exact', head: true }).eq('status', 'pending')
     ]);
+    const [{ data: reports }, { data: auditLogs }] = await Promise.all([
+        supabaseClient.from('reports').select('id, reason, priority, status, created_at, events(title)').neq('status', 'resolved').neq('status', 'dismissed').order('created_at', { ascending: false }),
+        supabaseClient.from('audit_logs').select('id, action, entity_type, entity_id, details, created_at').order('created_at', { ascending: false }).limit(25)
+    ]);
 
     const users = usersResult.data || [];
     const events = eventsResult.data || [];
@@ -361,9 +432,11 @@ async function setupAdminDashboard(currentUser) {
     setStat('events', activeEvents.length);
     setStat('applications', applications.length);
     setStat('pending', pendingResult.count || 0);
+    setStat('reports', reports?.length || 0);
     setCount('users', users.length);
     setCount('events', events.length);
     setCount('applications', applications.length);
+    setCount('reports', reports?.length || 0);
 
     const userList = document.querySelector('[data-admin-users]');
     if (userList) userList.innerHTML = users.length ? users.map((user) => `
@@ -379,6 +452,14 @@ async function setupAdminDashboard(currentUser) {
     if (eventList) eventList.innerHTML = events.length ? events.map((event) => `
         <tr><td>${escapeHtml(event.title)}</td><td>${escapeHtml(event.profiles?.full_name || 'Nezināms lietotājs')}</td><td>${(event.event_applications || []).length}</td><td><span class="status status-${event.status === 'approved' ? 'approved' : event.status === 'rejected' ? 'rejected' : 'pending'}">${event.status === 'approved' ? 'Publicēts' : event.status === 'rejected' ? 'Noraidīts' : 'Gaida'}</span></td><td>${formatAdminDate(event.event_date)}</td></tr>
     `).join('') : adminEmptyRow(5, 'Pasākumu nav.');
+
+    const reportList = document.querySelector('[data-admin-reports]');
+    if (reportList) reportList.innerHTML = reports?.length ? reports.map((report) => `
+        <tr><td><span class="status status-${report.priority === 'high' ? 'rejected' : report.priority === 'low' ? 'approved' : 'pending'}">${escapeHtml(report.priority)}</span></td><td>${escapeHtml(report.reason)}</td><td>${escapeHtml(report.events?.title || 'Dzēsts pasākums')}</td><td>${formatAdminDate(report.created_at.slice(0, 10))}</td><td>${escapeHtml(report.status)}</td><td><button class="table-button" type="button" data-report-action="resolved" data-report-id="${report.id}">Atrisināts</button> <button class="table-button table-button-danger" type="button" data-report-action="dismissed" data-report-id="${report.id}">Noraidīt</button></td></tr>
+    `).join('') : adminEmptyRow(6, 'Atvērtu ziņojumu nav.');
+
+    const auditList = document.querySelector('[data-admin-audit]');
+    if (auditList) auditList.innerHTML = auditLogs?.length ? auditLogs.map((log) => `<tr><td>${escapeHtml(new Date(log.created_at).toLocaleString('lv-LV'))}</td><td>${escapeHtml(log.action)}</td><td>${escapeHtml(log.entity_type)}</td><td>${escapeHtml(JSON.stringify(log.details || {}))}</td></tr>`).join('') : adminEmptyRow(4, 'Audita ierakstu nav.');
 
     applicationList?.querySelectorAll('[data-application-action]').forEach((button) => {
         button.addEventListener('click', async () => {
@@ -414,6 +495,20 @@ async function setupAdminDashboard(currentUser) {
             await setupAdminDashboard(currentUser);
         });
     });
+
+    reportList?.querySelectorAll('[data-report-action]').forEach((button) => {
+        button.addEventListener('click', async () => {
+            button.disabled = true;
+            const { error } = await supabaseClient.from('reports').update({ status: button.dataset.reportAction, resolved_by: currentUser.id, resolved_at: new Date().toISOString() }).eq('id', button.dataset.reportId);
+            if (error) {
+                button.disabled = false;
+                showFormMessage(error.message, true);
+                return;
+            }
+            await supabaseClient.from('audit_logs').insert({ actor_id: currentUser.id, action: `${button.dataset.reportAction}_report`, entity_type: 'report', entity_id: button.dataset.reportId });
+            await setupAdminDashboard(currentUser);
+        });
+    });
 }
 
 async function renderCustomEvents() {
@@ -425,12 +520,13 @@ async function renderCustomEvents() {
 
     const { data: approvedEvents, error } = await supabaseClient
         .from('events')
-        .select('id, title, category, event_date, location, description, event_images(storage_path)')
+        .select('id, title, category, event_date, location, description, volunteer_roles, event_images(storage_path)')
         .eq('status', 'approved')
         .order('event_date', { ascending: true });
 
     if (error) {
-        list.innerHTML = `<p>${escapeHtml(error.message)}</p>`;
+        if (list) list.innerHTML = `<p>${escapeHtml(error.message)}</p>`;
+        if (homeList) homeList.innerHTML = `<p>${escapeHtml(error.message)}</p>`;
         return;
     }
 
@@ -452,16 +548,20 @@ async function renderCustomEvents() {
                 <span>📅 ${escapeHtml(event.event_date)}</span>
                 <span>📍 ${escapeHtml(event.location)}</span>
             </div>
+            ${event.volunteer_roles ? `<p class="event-roles"><strong>Lomas:</strong> ${escapeHtml(event.volunteer_roles)}</p>` : ''}
             <a href="pieteikties.html" class="btn-card">Pieteikties dalībai</a>
+            <a href="report.html?event=${encodeURIComponent(event.id)}" class="text-button">Ziņot par pasākumu</a>
         </div>
-    `).join('') : '<p class="no-results">Apstiprinātu pasākumu pašlaik nav.</p>';
+    `).join('') : '';
     if (homeList) homeList.innerHTML = approvedEvents.length ? approvedEvents.slice(0, 2).map((event) => `
         <article class="home-event-card">
             <span class="event-kind">${escapeHtml(event.category)}</span>
             <p class="event-date">${escapeHtml(event.event_date)}</p>
             <h3>${escapeHtml(event.title)}</h3>
             <p>${escapeHtml(event.description)}</p>
+            ${event.volunteer_roles ? `<p class="event-roles"><strong>Lomas:</strong> ${escapeHtml(event.volunteer_roles)}</p>` : ''}
             <div><span>${escapeHtml(event.location)}</span><a href="pieteikties.html" aria-label="Pieteikties ${escapeHtml(event.title)}">→</a></div>
+            <a href="report.html?event=${encodeURIComponent(event.id)}" class="text-button">Ziņot par pasākumu</a>
         </article>
     `).join('') : '<p class="no-results">Apstiprinātu pasākumu pašlaik nav.</p>';
     document.dispatchEvent(new Event('voluntio:events-rendered'));
@@ -478,7 +578,7 @@ function setupEventFilters() {
         const query = normalize(search.value.trim());
         const selectedCategory = category.value;
         let visibleCount = 0;
-        section.querySelectorAll('.events-grid .event-card').forEach((card) => {
+        section.querySelectorAll('.custom-events-grid .event-card').forEach((card) => {
             const searchableText = normalize([
                 card.querySelector('h3')?.textContent,
                 card.querySelector('.card-desc')?.textContent,
@@ -563,6 +663,35 @@ function setupLoginForm() {
         }
         const currentUser = await getCurrentUser();
         window.location.href = currentUser?.profile?.role === 'admin' ? 'admin.html' : 'index.html';
+    });
+}
+
+async function setupProfilePage(currentUser) {
+    const form = document.querySelector('[data-profile-form]');
+    if (!form || !currentUser) return;
+    form.elements.fullName.value = currentUser.profile?.full_name || '';
+    form.elements.email.value = currentUser.email || '';
+    form.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const { error } = await supabaseClient.rpc('update_my_profile', { new_full_name: form.elements.fullName.value.trim() });
+        showFormMessage(error ? error.message : 'Profils atjaunināts.', Boolean(error));
+    });
+    document.querySelector('[data-export-data]')?.addEventListener('click', async () => {
+        const { data, error } = await supabaseClient.rpc('export_my_data');
+        if (error) return showFormMessage(error.message, true);
+        const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = 'voluntio-personal-data.json';
+        link.click();
+        URL.revokeObjectURL(link.href);
+    });
+    document.querySelector('[data-delete-account]')?.addEventListener('click', async () => {
+        if (!window.confirm('Vai tiešām vēlies neatgriezeniski dzēst savu kontu un datus?')) return;
+        const { error } = await supabaseClient.rpc('delete_my_account');
+        if (error) return showFormMessage(error.message, true);
+        await supabaseClient.auth.signOut();
+        window.location.href = 'index.html';
     });
 }
 
@@ -803,8 +932,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     setupNavigation();
     setupLoginForm();
     setupRegistrationForm();
+    setupProfilePage(currentUser);
     setupEventForm();
     setupApplicationForm();
+    setupReportForm();
     setupAdminRequests(currentUser);
     setupAdminDashboard(currentUser);
     setupAdminFilters();

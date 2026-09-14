@@ -47,8 +47,16 @@
                 <label for="location">Norises vieta</label>
                 <input id="location" name="location" type="text" placeholder="Norādi adresi vai vietu" required>
 
-                <label for="roles">Nepieciešamās brīvprātīgo lomas</label>
-                <input id="roles" name="roles" type="text" placeholder="Piemēram, koordinators, 3 palīgi">
+                <label>Nepieciešamās brīvprātīgo lomas</label>
+                <div class="role-builder" data-role-builder>
+                    <div class="role-row">
+                        <input name="role-name" type="text" placeholder="Piemēram, cleaner" aria-label="Brīvprātīgā loma">
+                        <input name="role-count" type="number" min="0" max="999" value="0" aria-label="Nepieciešamais skaits">
+                        <button class="table-button table-button-danger" type="button" data-remove-role disabled>Noņemt</button>
+                    </div>
+                </div>
+                <button class="btn-card role-add-button" type="button" data-add-role>Pievienot lomu</button>
+                <input id="roles" name="roles" type="hidden">
 
                 <label for="description">Apraksts</label>
                 <textarea id="description" name="description" rows="5" placeholder="Apraksti pasākuma mērķi un norisi" required></textarea>

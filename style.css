@@ -23,6 +23,21 @@ body {
     flex-direction: column;
     min-height: 100vh;
     letter-spacing: -0.01em;
+    transition: background-color 0.35s ease, color 0.35s ease;
+}
+
+body,
+.navbar,
+.card,
+.event-card,
+.stat-card,
+.table-wrap,
+.simple-form input,
+.simple-form select,
+.simple-form textarea,
+.home-event-card,
+footer {
+    transition: background-color 0.35s ease, border-color 0.35s ease, color 0.35s ease, box-shadow 0.35s ease;
 }
 
 /* Dinamiska navigācijas josla */
@@ -224,6 +239,18 @@ body {
     margin: 0 auto;
 }
 
+.role-builder { display: grid; gap: 0.65rem; }
+.role-row { align-items: center; display: grid; gap: 0.55rem; grid-template-columns: minmax(0, 1fr) 5rem auto; }
+.role-row input { min-width: 0; }
+.role-add-button { align-self: flex-start; border: 1px solid var(--border-color); margin-top: 0.25rem; }
+
+.profile-main .simple-form-card { margin-bottom: 1.25rem; }
+.profile-actions { margin: 0 auto 3rem; max-width: 560px; }
+.profile-actions h2 { margin-bottom: 0.5rem; }
+.profile-actions p { color: var(--text-muted); margin-bottom: 1.25rem; }
+.profile-action-row { align-items: center; display: flex; flex-wrap: wrap; gap: 0.75rem; }
+.auth-page .password-toggle { display: inline-flex; }
+
 .simple-form {
     display: flex;
     flex-direction: column;
@@ -346,6 +373,13 @@ body {
     margin-bottom: 1rem;
     object-fit: cover;
     width: 100%;
+}
+
+.event-roles {
+    color: var(--text-muted);
+    font-size: 0.88rem;
+    line-height: 1.45;
+    margin: 0.85rem 0;
 }
 
 .admin-stats {
@@ -631,7 +665,7 @@ body:not(.auth-page) { background: var(--bg-gradient); }
 footer { background: #17224b; border: 0; color: #c7d0f7; padding: 2rem; }
 .back-link { align-items: center; background: #edf0fb; border: 1px solid #d5dcf7; border-radius: 9px; color: #273d9b; display: inline-flex; font-size: .95rem; font-weight: 750; gap: .5rem; margin-bottom: clamp(2.5rem, 6vh, 5rem); padding: .75rem 1rem; }.back-link:hover { background: #dfe5ff; color: #17224b; transform: translateX(-2px); }
 .password-toggle { align-items: center; color: #5168d9; display: inline-flex; height: 2.35rem; justify-content: center; padding: .45rem; width: 2.35rem; }.password-toggle svg { fill: none; height: 1.25rem; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.8; width: 1.25rem; }.password-toggle:not(:has(svg)) { font-size: 0; }.password-toggle:not(:has(svg))::before { border: 1.8px solid currentColor; border-radius: 50% 50% 50% 50% / 65% 65% 65% 65%; content: ''; height: .8rem; width: 1.2rem; }.password-toggle:not(:has(svg))::after { background: currentColor; border-radius: 50%; content: ''; height: .3rem; left: calc(50% - .15rem); position: absolute; top: calc(50% - .15rem); width: .3rem; }.password-toggle.is-revealed svg { opacity: .5; }.password-toggle.is-revealed::after { background: currentColor; content: ''; height: 1.7px; position: absolute; transform: rotate(-45deg); width: 1.55rem; }
-.auth-page .password-toggle { display: none; }
+.auth-page .password-toggle { display: inline-flex; }
 .auth-page .password-field input { padding-right: .9rem !important; }
 .hero .btn-card, .hero .btn-card:hover { color: #fff; text-decoration: none; }
 .hero .btn-card:hover { background: #273d9b; }
