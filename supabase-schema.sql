@@ -46,11 +46,14 @@ create table if not exists public.events (
     location text not null,
     volunteer_roles text,
     description text not null,
+    whitelist_volunteers boolean not null default false,
     status public.event_status not null default 'pending',
     reviewed_by uuid references public.profiles(id) on delete set null,
     reviewed_at timestamptz,
     created_at timestamptz not null default now()
 );
+
+alter table public.events add column if not exists whitelist_volunteers boolean not null default false;
 
 create table if not exists public.event_images (
     id uuid primary key default gen_random_uuid(),
@@ -68,6 +71,14 @@ create table if not exists public.event_applications (
     status public.application_status not null default 'pending',
     created_at timestamptz not null default now(),
     unique (event_id, volunteer_id)
+);
+
+create table if not exists public.event_messages (
+    id uuid primary key default gen_random_uuid(),
+    event_id uuid not null references public.events(id) on delete cascade,
+    sender_id uuid not null references public.profiles(id) on delete cascade,
+    message text not null check (char_length(message) between 1 and 1000),
+    created_at timestamptz not null default now()
 );
 
 create table if not exists public.reports (
@@ -184,6 +195,7 @@ alter table public.profiles enable row level security;
 alter table public.events enable row level security;
 alter table public.event_images enable row level security;
 alter table public.event_applications enable row level security;
+alter table public.event_messages enable row level security;
 alter table public.reports enable row level security;
 alter table public.audit_logs enable row level security;
 
@@ -242,6 +254,11 @@ drop policy if exists "Authenticated users can request events" on public.events;
 create policy "Authenticated users can request events"
 on public.events for insert to authenticated
 with check (creator_id = auth.uid() and status = 'pending');
+
+drop policy if exists "Creators can manage their events" on public.events;
+create policy "Creators can manage their events"
+on public.events for update to authenticated
+using (creator_id = auth.uid()) with check (creator_id = auth.uid());
 
 drop policy if exists "Everyone can view approved events" on public.events;
 create policy "Everyone can view approved events"
@@ -305,6 +322,29 @@ using (
     or exists (select 1 from public.events where id = event_id and creator_id = auth.uid())
 )
 with check (true);
+
+drop policy if exists "Event participants can read messages" on public.event_messages;
+create policy "Event participants can read messages"
+on public.event_messages for select to authenticated
+using (
+    sender_id = auth.uid()
+    or exists (select 1 from public.events where id = event_id and creator_id = auth.uid())
+    or exists (select 1 from public.event_applications where event_id = event_messages.event_id and volunteer_id = auth.uid() and status = 'approved')
+);
+
+drop policy if exists "Event participants can send messages" on public.event_messages;
+create policy "Event participants can send messages"
+on public.event_messages for insert to authenticated
+with check (
+    sender_id = auth.uid()
+    and (exists (select 1 from public.events where id = event_id and creator_id = auth.uid())
+    or exists (select 1 from public.event_applications where event_id = event_messages.event_id and volunteer_id = auth.uid() and status = 'approved'))
+);
+
+drop policy if exists "Organizers can remove messages" on public.event_messages;
+create policy "Organizers can remove messages"
+on public.event_messages for delete to authenticated
+using (exists (select 1 from public.events where id = event_id and creator_id = auth.uid()));
 
 drop policy if exists "Users can submit reports" on public.reports;
 create policy "Users can submit reports"

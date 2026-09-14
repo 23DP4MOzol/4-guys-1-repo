@@ -122,6 +122,7 @@ function setupEventForm() {
     const input = document.querySelector('[data-image-input]');
     const preview = document.querySelector('[data-image-preview]');
     let croppedImages = [];
+    const editId = new URLSearchParams(window.location.search).get('edit');
 
     if (!form || !input || !preview) {
         return;
@@ -137,6 +138,19 @@ function setupEventForm() {
             return name ? `${name} (${count})` : '';
         }).filter(Boolean).join(', ');
     };
+    if (editId) {
+        supabaseClient.from('events').select('title, category, event_date, location, volunteer_roles, description, whitelist_volunteers').eq('id', editId).single().then(({ data }) => {
+            if (!data) return;
+            form.elements.title.value = data.title;
+            form.elements.category.value = data.category;
+            form.elements.date.value = data.event_date;
+            form.elements.location.value = data.location;
+            form.elements.description.value = data.description;
+            form.elements.whitelist.checked = data.whitelist_volunteers;
+            const button = form.querySelector('button[type="submit"]');
+            if (button) button.textContent = 'Saglabāt izmaiņas';
+        });
+    }
     roleBuilder.addEventListener('input', syncRoles);
     roleBuilder.addEventListener('click', (event) => {
         const remove = event.target.closest('[data-remove-role]');
@@ -184,7 +198,7 @@ function setupEventForm() {
             return;
         }
 
-        const { data: eventRecord, error } = await supabaseClient.from('events').insert({
+        const eventPayload = {
             creator_id: currentUser.id,
             title,
             category: form.elements.category.value,
@@ -192,14 +206,23 @@ function setupEventForm() {
             location: form.elements.location.value.trim(),
             volunteer_roles: form.elements.roles.value.trim(),
             description: form.elements.description.value.trim(),
+            whitelist_volunteers: form.elements.whitelist.checked,
             status: 'pending'
-        }).select('id').single();
+        };
+        const eventQuery = editId
+            ? supabaseClient.from('events').update(eventPayload).eq('id', editId).eq('creator_id', currentUser.id).select('id').single()
+            : supabaseClient.from('events').insert(eventPayload).select('id').single();
+        const { data: eventRecord, error } = await eventQuery;
 
         if (error) {
             showFormMessage(`Neizdevās iesniegt pasākumu: ${error.message}`, true);
             return;
         }
 
+        if (editId) {
+            window.location.href = 'profile.html';
+            return;
+        }
         const uploadedPaths = [];
         for (let index = 0; index < croppedImages.length; index += 1) {
             const path = `${currentUser.id}/${eventRecord.id}/${index + 1}.jpg`;
@@ -233,6 +256,7 @@ function setupEventForm() {
         roleBuilder.querySelector('[data-remove-role]').disabled = true;
         syncRoles();
         preview.innerHTML = '';
+        window.location.href = 'profile.html';
     });
 }
 
@@ -246,7 +270,7 @@ async function setupApplicationForm() {
 
     const { data: events, error } = await supabaseClient
         .from('events')
-        .select('id, title, event_date')
+        .select('id, title, event_date, creator_id')
         .eq('status', 'approved')
         .order('event_date', { ascending: true });
 
@@ -258,12 +282,27 @@ async function setupApplicationForm() {
     select.innerHTML = events.length
         ? events.map((event) => `<option value="${event.id}">${escapeHtml(event.title)} - ${escapeHtml(event.event_date)}</option>`).join('')
         : '<option value="">Nav pieejamu pasākumu</option>';
+    const requestedEvent = new URLSearchParams(window.location.search).get('event');
+    if (requestedEvent && events.some((event) => event.id === requestedEvent)) {
+        select.value = requestedEvent;
+        select.disabled = true;
+    }
+    const currentUser = await getCurrentUser();
+    if (currentUser) {
+        form.elements.name.value = currentUser.profile?.full_name || '';
+        form.elements.email.value = currentUser.email || '';
+    }
 
     form.addEventListener('submit', async (event) => {
         event.preventDefault();
         const currentUser = await getCurrentUser();
         if (!currentUser) {
             window.location.href = 'login.html';
+            return;
+        }
+        const selectedEvent = events.find((event) => event.id === select.value);
+        if (selectedEvent?.creator_id === currentUser.id) {
+            showFormMessage('Tu esi šī pasākuma organizators un nevari tam pieteikties.', true);
             return;
         }
         const { error: applicationError } = await supabaseClient.from('event_applications').insert({
@@ -310,6 +349,66 @@ async function setupReportForm() {
         showFormMessage('Ziņojums nosūtīts administratoram.');
         form.reset();
     });
+}
+
+function setupEventDetail() {
+    const detail = document.querySelector('[data-event-detail]');
+    if (!detail) return;
+    const eventId = new URLSearchParams(window.location.search).get('id');
+    const joinForm = document.querySelector('[data-detail-application]');
+    const chatList = document.querySelector('[data-chat-list]');
+    const chatForm = document.querySelector('[data-chat-form]');
+    const blockedWords = ['spamword', 'scamword'];
+    let currentUser;
+    const load = async () => {
+        const result = await supabaseClient.from('events').select('id, title, category, event_date, location, description, volunteer_roles, creator_id, profiles!events_creator_id_fkey(full_name)').eq('id', eventId).single();
+        if (result.error) { detail.innerHTML = `<h1>Pasākums nav atrasts</h1><p>${escapeHtml(result.error.message)}</p>`; return; }
+        const event = result.data;
+        detail.innerHTML = `<p class="eyebrow">${escapeHtml(event.category)}</p><h1>${escapeHtml(event.title)}</h1><p>${escapeHtml(event.description)}</p><p class="event-meta">${escapeHtml(event.event_date)} · ${escapeHtml(event.location)} · Organizators: ${escapeHtml(event.profiles?.full_name || '')}</p>${event.volunteer_roles ? `<p class="event-roles"><strong>Lomas:</strong> ${escapeHtml(event.volunteer_roles)}</p>` : ''}`;
+        currentUser = await getCurrentUser();
+        if (currentUser?.id === event.creator_id) {
+            joinForm?.closest('[data-event-join]')?.remove();
+            const panel = document.querySelector('[data-organizer-panel]');
+            const applications = document.querySelector('[data-organizer-applications]');
+            panel.hidden = false;
+            const loadApplications = async () => {
+                const { data } = await supabaseClient.from('event_applications').select('id, status, message, profiles(full_name)').eq('event_id', event.id).order('created_at');
+                applications.innerHTML = (data || []).map((application) => `<div class="owned-event"><div><strong>${escapeHtml(application.profiles?.full_name || 'Lietotājs')}</strong><span>${escapeHtml(application.message || '')} · ${escapeHtml(application.status)}</span></div>${application.status === 'pending' ? `<button class="table-button" type="button" data-application-id="${application.id}" data-application-status="approved">Apstiprināt</button> <button class="table-button table-button-danger" type="button" data-application-id="${application.id}" data-application-status="rejected">Noraidīt</button>` : ''}</div>`).join('') || '<p>Pieteikumu nav.</p>';
+                applications.querySelectorAll('[data-application-id]').forEach((button) => button.addEventListener('click', async () => {
+                    await supabaseClient.from('event_applications').update({ status: button.dataset.applicationStatus }).eq('id', button.dataset.applicationId);
+                    loadApplications();
+                }));
+            };
+            loadApplications();
+        }
+        if (joinForm) joinForm.addEventListener('submit', async (submitEvent) => {
+            submitEvent.preventDefault();
+            const user = currentUser || await getCurrentUser();
+            if (!user) { window.location.href = 'login.html'; return; }
+            const { error } = await supabaseClient.from('event_applications').insert({ event_id: event.id, volunteer_id: user.id, message: joinForm.elements.message.value.trim() });
+            showFormMessage(error ? error.message : 'Pieteikums nosūtīts organizatoram.', Boolean(error));
+            if (!error) joinForm.querySelector('button').disabled = true;
+        });
+        loadChat();
+    };
+    const loadChat = async () => {
+        if (!chatList) return;
+        const { data } = await supabaseClient.from('event_messages').select('id, message, created_at, profiles(full_name)').eq('event_id', eventId).order('created_at');
+        chatList.innerHTML = (data || []).map((message) => `<p><strong>${escapeHtml(message.profiles?.full_name || 'Lietotājs')}:</strong> ${escapeHtml(message.message)}</p>`).join('') || '<p>Šeit vēl nav ziņu.</p>';
+    };
+    chatForm?.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const user = currentUser || await getCurrentUser();
+        const value = chatForm.elements.message.value.trim();
+        if (!user) { window.location.href = 'login.html'; return; }
+        if (!value || blockedWords.some((word) => value.toLowerCase().includes(word))) { showFormMessage('Ziņa satur neatļautu tekstu.', true); return; }
+        const { error } = await supabaseClient.from('event_messages').insert({ event_id: eventId, sender_id: user.id, message: value });
+        if (error) { showFormMessage(error.message, true); return; }
+        chatForm.reset();
+        await loadChat();
+    });
+    supabaseClient.channel(`event-chat-${eventId}`).on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'event_messages', filter: `event_id=eq.${eventId}` }, loadChat).subscribe();
+    load();
 }
 
 function dataUrlToBlob(dataUrl) {
@@ -445,7 +544,7 @@ async function setupAdminDashboard(currentUser) {
 
     const applicationList = document.querySelector('[data-admin-applications]');
     if (applicationList) applicationList.innerHTML = applications.length ? applications.slice(0, 20).map((application) => `
-        <tr><td>${escapeHtml(application.profiles?.full_name || 'Nezināms lietotājs')}</td><td>${escapeHtml(application.events?.title || 'Dzēsts pasākums')}</td><td>${formatAdminDate(application.events?.event_date)}</td><td><span class="status status-${application.status === 'approved' ? 'approved' : application.status === 'rejected' ? 'rejected' : 'pending'}">${application.status === 'approved' ? 'Apstiprināts' : application.status === 'rejected' ? 'Noraidīts' : 'Gaida'}</span></td><td>${application.status === 'pending' ? `<button class="table-button" type="button" data-application-action="approved" data-application-id="${application.id}">Apstiprināt</button> <button class="table-button table-button-danger" type="button" data-application-action="rejected" data-application-id="${application.id}">Noraidīt</button>` : '-'}</td></tr>
+        <tr><td>${escapeHtml(application.profiles?.full_name || 'Nezināms lietotājs')}</td><td>${escapeHtml(application.events?.title || 'Dzēsts pasākums')}</td><td>${formatAdminDate(application.events?.event_date)}</td><td><span class="status status-${application.status === 'approved' ? 'approved' : application.status === 'rejected' ? 'rejected' : 'pending'}">${application.status === 'approved' ? 'Apstiprināts' : application.status === 'rejected' ? 'Noraidīts' : 'Gaida'}</span></td><td>-</td></tr>
     `).join('') : adminEmptyRow(5, 'Pieteikumu nav.');
 
     const eventList = document.querySelector('[data-admin-events]');
@@ -549,7 +648,7 @@ async function renderCustomEvents() {
                 <span>📍 ${escapeHtml(event.location)}</span>
             </div>
             ${event.volunteer_roles ? `<p class="event-roles"><strong>Lomas:</strong> ${escapeHtml(event.volunteer_roles)}</p>` : ''}
-            <a href="pieteikties.html" class="btn-card">Pieteikties dalībai</a>
+            <a href="event.html?id=${encodeURIComponent(event.id)}" class="btn-card">Skatīt pasākumu</a>
             <a href="report.html?event=${encodeURIComponent(event.id)}" class="text-button">Ziņot par pasākumu</a>
         </div>
     `).join('') : '';
@@ -560,7 +659,7 @@ async function renderCustomEvents() {
             <h3>${escapeHtml(event.title)}</h3>
             <p>${escapeHtml(event.description)}</p>
             ${event.volunteer_roles ? `<p class="event-roles"><strong>Lomas:</strong> ${escapeHtml(event.volunteer_roles)}</p>` : ''}
-            <div><span>${escapeHtml(event.location)}</span><a href="pieteikties.html" aria-label="Pieteikties ${escapeHtml(event.title)}">→</a></div>
+            <div><span>${escapeHtml(event.location)}</span><a href="event.html?id=${encodeURIComponent(event.id)}" aria-label="Skatīt ${escapeHtml(event.title)}">→</a></div>
             <a href="report.html?event=${encodeURIComponent(event.id)}" class="text-button">Ziņot par pasākumu</a>
         </article>
     `).join('') : '<p class="no-results">Apstiprinātu pasākumu pašlaik nav.</p>';
@@ -669,6 +768,11 @@ function setupLoginForm() {
 async function setupProfilePage(currentUser) {
     const form = document.querySelector('[data-profile-form]');
     if (!form || !currentUser) return;
+    const myEvents = document.querySelector('[data-my-events]');
+    if (myEvents) {
+        const { data: events, error } = await supabaseClient.from('events').select('id, title, event_date, status').eq('creator_id', currentUser.id).order('created_at', { ascending: false });
+        myEvents.innerHTML = error ? `<p>${escapeHtml(error.message)}</p>` : events.length ? events.map((event) => `<div class="owned-event"><div><strong>${escapeHtml(event.title)}</strong><span>${escapeHtml(event.event_date)} · ${escapeHtml(event.status)}</span></div><a class="btn-card" href="create-event.html?edit=${encodeURIComponent(event.id)}">Rediģēt</a></div>`).join('') : '<p>Tu vēl neesi izveidojis pasākumus.</p>';
+    }
     form.elements.fullName.value = currentUser.profile?.full_name || '';
     form.elements.email.value = currentUser.email || '';
     form.addEventListener('submit', async (event) => {
@@ -936,6 +1040,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     setupEventForm();
     setupApplicationForm();
     setupReportForm();
+    setupEventDetail();
     setupAdminRequests(currentUser);
     setupAdminDashboard(currentUser);
     setupAdminFilters();

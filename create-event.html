@@ -13,6 +13,7 @@
             <ul class="nav-links">
                 <li><a href="index.html">Sākumlapa</a></li>
                 <li><a href="pasakumi.html">Pasākumi</a></li>
+                <li><a href="create-event.html" class="active">Izveidot pasākumu</a></li>
                 <li><a href="pieteikties.html">Pieteikties</a></li>
                 <li><a href="admin.html">Admin panelis</a></li>
             </ul>
@@ -60,6 +61,8 @@
 
                 <label for="description">Apraksts</label>
                 <textarea id="description" name="description" rows="5" placeholder="Apraksti pasākuma mērķi un norisi" required></textarea>
+
+                <label class="check-row"><input type="checkbox" name="whitelist"><span>Apstiprini brīvprātīgos manuāli</span></label>
 
                 <label for="event-images">Pasākuma attēli (līdz 5)</label>
                 <input id="event-images" name="event-images" type="file" accept="image/jpeg,image/png,image/webp" multiple data-image-input>

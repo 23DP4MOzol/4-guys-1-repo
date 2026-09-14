@@ -382,6 +382,13 @@ footer {
     margin: 0.85rem 0;
 }
 
+.owned-event { align-items: center; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; gap: 1rem; padding: 0.85rem 0; }
+.owned-event:last-child { border-bottom: 0; }
+.owned-event div { display: grid; gap: 0.25rem; }
+.owned-event span { color: var(--text-muted); font-size: 0.85rem; }
+.chat-list { background: rgba(237, 240, 251, 0.45); border: 1px solid var(--border-color); border-radius: 8px; display: grid; gap: 0.55rem; max-height: 20rem; overflow: auto; padding: 0.85rem; }
+.chat-list p { margin: 0; }
+
 .admin-stats {
     display: grid;
     grid-template-columns: repeat(4, 1fr);
