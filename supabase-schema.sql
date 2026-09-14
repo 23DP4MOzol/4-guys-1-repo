@@ -31,8 +31,11 @@ create table if not exists public.profiles (
     id uuid primary key references auth.users(id) on delete cascade,
     full_name text not null,
     role public.user_role not null default 'user',
+    is_banned boolean not null default false,
     created_at timestamptz not null default now()
 );
+
+alter table public.profiles add column if not exists is_banned boolean not null default false;
 
 create table if not exists public.events (
     id uuid primary key default gen_random_uuid(),
@@ -78,6 +81,43 @@ as $$
         select 1 from public.profiles
         where id = auth.uid() and role = 'admin'
     );
+$$;
+
+create or replace function public.admin_set_user_role(target_user_id uuid, target_role public.user_role)
+returns void
+language plpgsql
+security definer
+set search_path = public, auth
+as $$
+begin
+    if not public.is_admin() then
+        raise exception 'Only administrators can change user roles';
+    end if;
+    if target_user_id = auth.uid() and target_role <> 'admin' then
+        raise exception 'You cannot remove your own administrator role';
+    end if;
+    update public.profiles set role = target_role where id = target_user_id;
+end;
+$$;
+
+create or replace function public.admin_set_user_banned(target_user_id uuid, should_ban boolean)
+returns void
+language plpgsql
+security definer
+set search_path = public, auth
+as $$
+begin
+    if not public.is_admin() then
+        raise exception 'Only administrators can ban users';
+    end if;
+    if target_user_id = auth.uid() then
+        raise exception 'You cannot ban yourself';
+    end if;
+    update public.profiles set is_banned = should_ban where id = target_user_id;
+    update auth.users
+    set banned_until = case when should_ban then 'infinity'::timestamptz else null end
+    where id = target_user_id;
+end;
 $$;
 
 create or replace function public.handle_new_user()

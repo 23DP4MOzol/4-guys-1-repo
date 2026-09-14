@@ -8,9 +8,14 @@ async function getCurrentUser() {
 
     const { data: profile } = await supabaseClient
         .from('profiles')
-        .select('id, full_name, role')
+        .select('id, full_name, role, is_banned')
         .eq('id', user.id)
         .single();
+
+    if (profile?.is_banned) {
+        await supabaseClient.auth.signOut();
+        return null;
+    }
 
     return { ...user, profile };
 }
@@ -270,7 +275,7 @@ async function setupAdminRequests(currentUser) {
 
     const { data: pendingRequests, error } = await supabaseClient
         .from('events')
-        .select('id, title, event_date, creator_id, profiles(full_name), event_images(id)')
+        .select('id, title, event_date, creator_id, profiles!events_creator_id_fkey(full_name), event_images(id)')
         .eq('status', 'pending')
         .order('created_at', { ascending: false });
 
@@ -334,8 +339,8 @@ async function setupAdminDashboard(currentUser) {
     if (!document.querySelector('[data-admin-stat]') || currentUser?.profile?.role !== 'admin') return;
 
     const [usersResult, eventsResult, applicationsResult, pendingResult] = await Promise.all([
-        supabaseClient.from('profiles').select('id, full_name, role, created_at').order('created_at', { ascending: false }),
-        supabaseClient.from('events').select('id, title, status, event_date, profiles(full_name), event_applications(id)').order('event_date', { ascending: true }),
+        supabaseClient.from('profiles').select('id, full_name, role, is_banned, created_at').order('created_at', { ascending: false }),
+        supabaseClient.from('events').select('id, title, status, event_date, profiles!events_creator_id_fkey(full_name), event_applications(id)').order('event_date', { ascending: true }),
         supabaseClient.from('event_applications').select('id, status, created_at, volunteer_id, profiles(id, full_name), events(title, event_date)').order('created_at', { ascending: false }),
         supabaseClient.from('events').select('id', { count: 'exact', head: true }).eq('status', 'pending')
     ]);
@@ -362,8 +367,8 @@ async function setupAdminDashboard(currentUser) {
 
     const userList = document.querySelector('[data-admin-users]');
     if (userList) userList.innerHTML = users.length ? users.map((user) => `
-        <tr><td>${escapeHtml(user.full_name)}</td><td title="${escapeHtml(user.id)}">${escapeHtml(user.id.slice(0, 8))}...</td><td>${user.role === 'admin' ? 'Administrators' : 'Brīvprātīgais'}</td><td>${applications.filter((application) => application.profiles?.id === user.id).length}</td><td><span class="status status-approved">Aktīvs</span></td></tr>
-    `).join('') : adminEmptyRow(5, 'Lietotāju nav.');
+        <tr><td>${escapeHtml(user.full_name)}</td><td title="${escapeHtml(user.id)}">${escapeHtml(user.id.slice(0, 8))}...</td><td>${user.role === 'admin' ? 'Administrators' : 'Brīvprātīgais'}</td><td>${applications.filter((application) => application.profiles?.id === user.id).length}</td><td><span class="status status-${user.is_banned ? 'rejected' : 'approved'}">${user.is_banned ? 'Bloķēts' : 'Aktīvs'}</span></td><td><button class="table-button" type="button" data-user-action="${user.role === 'admin' ? 'demote' : 'promote'}" data-user-id="${user.id}">${user.role === 'admin' ? 'Noņemt adminu' : 'Promovēt adminam'}</button> <button class="table-button table-button-danger" type="button" data-user-action="${user.is_banned ? 'unban' : 'ban'}" data-user-id="${user.id}">${user.is_banned ? 'Atbloķēt' : 'Bloķēt'}</button></td></tr>
+    `).join('') : adminEmptyRow(6, 'Lietotāju nav.');
 
     const applicationList = document.querySelector('[data-admin-applications]');
     if (applicationList) applicationList.innerHTML = applications.length ? applications.slice(0, 20).map((application) => `
@@ -381,6 +386,26 @@ async function setupAdminDashboard(currentUser) {
             const { error } = await supabaseClient.from('event_applications').update({
                 status: button.dataset.applicationAction
             }).eq('id', button.dataset.applicationId);
+            if (error) {
+                button.disabled = false;
+                showFormMessage(error.message, true);
+                return;
+            }
+            await setupAdminDashboard(currentUser);
+        });
+    });
+
+    userList?.querySelectorAll('[data-user-action]').forEach((button) => {
+        button.addEventListener('click', async () => {
+            const action = button.dataset.userAction;
+            const confirmation = action === 'ban' || action === 'demote';
+            if (confirmation && !window.confirm('Vai tiešām vēlies veikt šo darbību?')) return;
+            button.disabled = true;
+            const rpcName = action === 'promote' || action === 'demote' ? 'admin_set_user_role' : 'admin_set_user_banned';
+            const rpcArgs = rpcName === 'admin_set_user_role'
+                ? { target_user_id: button.dataset.userId, target_role: action === 'promote' ? 'admin' : 'user' }
+                : { target_user_id: button.dataset.userId, should_ban: action === 'ban' };
+            const { error } = await supabaseClient.rpc(rpcName, rpcArgs);
             if (error) {
                 button.disabled = false;
                 showFormMessage(error.message, true);
