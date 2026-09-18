@@ -840,6 +840,25 @@ body:not(.auth-page) .navbar {
     .navbar.menu-open .menu-toggle span:nth-child(3) { transform: translateY(-.41rem) rotate(-45deg); }
 }
 
+@media (min-width: 781px) {
+    body:not(.auth-page) .navbar .nav-links {
+        left: auto;
+        position: static;
+        transform: none;
+    }
+}
+
+@media (min-width: 781px) and (max-width: 1200px) {
+    body:not(.auth-page) .navbar { gap: .55rem; padding-left: 1.25rem; padding-right: 1.25rem; }
+    body:not(.auth-page) .navbar .nav-links { gap: .7rem; }
+    body:not(.auth-page) .navbar .nav-links a { font-size: .76rem; }
+    body:not(.auth-page) .navbar .nav-preferences { flex-basis: 7.2rem; }
+    body:not(.auth-page) .navbar .nav-preference { width: 3.35rem; }
+    body:not(.auth-page) .navbar .auth-buttons { gap: .35rem; }
+    body:not(.auth-page) .navbar .auth-buttons a,
+    body:not(.auth-page) .navbar .auth-buttons button { padding-left: .65rem; padding-right: .65rem; }
+}
+
 /* Desktop links are centred against the viewport, regardless of hidden admin links. */
 @media (min-width: 781px) {
     body:not(.auth-page) .navbar .nav-links {
@@ -962,4 +981,19 @@ body.dark-mode .role-section, body.dark-mode .featured-events { background: #101
     .role-card { min-height: 0; min-width: 0; padding-bottom: 1.5rem; }
     .role-card h3, .role-card p { overflow-wrap: anywhere; }
     .role-card a { bottom: auto; display: inline-block; margin-top: 1.25rem; position: static; }
+}
+
+@media (min-width: 781px) {
+    body:not(.auth-page) .navbar .nav-links { left: auto; position: static; transform: none; }
+}
+
+@media (min-width: 781px) and (max-width: 1200px) {
+    body:not(.auth-page) .navbar { gap: .55rem; padding-left: 1.25rem; padding-right: 1.25rem; }
+    body:not(.auth-page) .navbar .nav-links { gap: .7rem; }
+    body:not(.auth-page) .navbar .nav-links a { font-size: .76rem; }
+    body:not(.auth-page) .navbar .nav-preferences { flex-basis: 7.2rem; }
+    body:not(.auth-page) .navbar .nav-preference { width: 3.35rem; }
+    body:not(.auth-page) .navbar .auth-buttons { gap: .35rem; }
+    body:not(.auth-page) .navbar .auth-buttons a,
+    body:not(.auth-page) .navbar .auth-buttons button { padding-left: .65rem; padding-right: .65rem; }
 }
