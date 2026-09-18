@@ -49,8 +49,19 @@
         </section>
         <section class="card profile-actions">
             <h2>Personas dati</h2>
-            <p>Lejupielādē savus datus vai pieprasi konta neatgriezenisku dzēšanu.</p>
-            <div class="profile-action-row"><button class="btn-card" type="button" data-export-data>Lejupielādēt manus datus</button><button class="table-button table-button-danger" type="button" data-delete-account>Dzēst kontu</button></div>
+            <p>Lejupielādē savus personas datus.</p>
+            <div class="profile-action-row"><button class="btn-card" type="button" data-export-data>Lejupielādēt manus datus</button></div>
+        </section>
+        <section class="card profile-actions profile-danger-zone">
+            <h2>Neatgriezeniska darbība</h2>
+            <p>Konta dzēšana neatgriezeniski noņems tavu kontu un ar to saistītos datus.</p>
+            <button class="danger-button" type="button" data-show-delete-account>Dzēst kontu</button>
+            <form class="simple-form delete-account-form" data-delete-account-form hidden>
+                <label for="delete-account-password">Ievadi paroli, lai apstiprinātu</label>
+                <input id="delete-account-password" name="password" type="password" autocomplete="current-password" required>
+                <div class="profile-action-row"><button class="danger-button" type="submit">Neatgriezeniski dzēst kontu</button></div>
+                <p class="form-note" data-delete-account-message></p>
+            </form>
         </section>
         <section class="card profile-actions"><h2>Mani pasākumi</h2><p>Pasākumi, kurus esi izveidojis, arī tie, kas gaida apstiprinājumu.</p><div data-my-events><p>Notiek ielāde...</p></div></section>
     </main>

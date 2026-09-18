@@ -50,6 +50,7 @@ async function guardPage(currentUser) {
 function updateAuthLinks(currentUser) {
     const authButtons = document.querySelector('.auth-buttons');
     const isAdmin = currentUser?.profile?.role === 'admin';
+    document.querySelectorAll('.hero-text-link').forEach((link) => { link.hidden = Boolean(currentUser); });
 
     document.querySelectorAll('a[href="admin.html"]').forEach((link) => {
         link.closest('li')?.classList.toggle('hidden-nav-item', !isAdmin);
@@ -840,10 +841,33 @@ async function setupProfilePage(currentUser) {
         link.click();
         URL.revokeObjectURL(link.href);
     });
-    document.querySelector('[data-delete-account]')?.addEventListener('click', async () => {
+    const deleteButton = document.querySelector('[data-show-delete-account]');
+    const deleteForm = document.querySelector('[data-delete-account-form]');
+    const deleteMessage = document.querySelector('[data-delete-account-message]');
+    deleteButton?.addEventListener('click', () => {
+        deleteButton.hidden = true;
+        deleteForm.hidden = false;
+        deleteForm.elements.password.focus();
+    });
+    deleteForm?.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        deleteMessage.textContent = '';
+        const { error: passwordError } = await supabaseClient.auth.signInWithPassword({
+            email: currentUser.email,
+            password: deleteForm.elements.password.value
+        });
+        if (passwordError) {
+            deleteMessage.textContent = 'Parole nav pareiza. Konts netika dzēsts.';
+            deleteMessage.classList.add('form-error');
+            return;
+        }
         if (!window.confirm('Vai tiešām vēlies neatgriezeniski dzēst savu kontu un datus?')) return;
         const { error } = await supabaseClient.rpc('delete_my_account');
-        if (error) return showFormMessage(error.message, true);
+        if (error) {
+            deleteMessage.textContent = error.message;
+            deleteMessage.classList.add('form-error');
+            return;
+        }
         await supabaseClient.auth.signOut();
         window.location.href = 'index.html';
     });
@@ -940,8 +964,9 @@ function setupPagePreferences() {
     controls.className = 'nav-preferences';
     controls.dataset.noTranslate = 'true';
     const darkMode = sessionStorage.getItem('voluntio-theme') === 'dark';
+    const savedLanguage = localStorage.getItem('voluntio-language');
     document.body.classList.toggle('dark-mode', darkMode);
-    controls.innerHTML = `<button class="nav-preference" type="button" data-theme-toggle>${darkMode ? 'Gaišs' : 'Tumšs'}</button><button class="nav-preference" type="button" data-language-toggle>EN</button>`;
+    controls.innerHTML = `<button class="nav-preference" type="button" data-theme-toggle>${darkMode ? 'Gaišs' : 'Tumšs'}</button><button class="nav-preference" type="button" data-language-toggle>${savedLanguage === 'en' ? 'LV' : 'EN'}</button>`;
     if (navbar) navbar.insertBefore(controls, navbar.querySelector('.auth-buttons'));
     else authContent.append(controls);
 
@@ -959,6 +984,7 @@ function setupPagePreferences() {
         try {
             await translatePage(targetLanguage);
             activeLanguage = targetLanguage;
+            localStorage.setItem('voluntio-language', targetLanguage);
             button.textContent = targetLanguage === 'en' ? 'LV' : 'EN';
             document.documentElement.lang = targetLanguage;
         } catch (error) {
@@ -968,6 +994,14 @@ function setupPagePreferences() {
             button.disabled = false;
         }
     });
+    if (savedLanguage === 'en') {
+        translatePage('en').then(() => {
+            activeLanguage = 'en';
+            document.documentElement.lang = 'en';
+        }).catch(() => {
+            localStorage.removeItem('voluntio-language');
+        });
+    }
 }
 
 function setupNavigation() {
