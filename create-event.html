@@ -34,12 +34,12 @@
                 <label for="title">Pasākuma nosaukums</label>
                 <input id="title" name="title" type="text" minlength="3" maxlength="120" placeholder="Piemēram, Parka sakopšana" required>
 
-                <label for="category">Kategorija</label>
+                <label for="category">Pasākuma sadaļa</label>
                 <select id="category" name="category">
-                    <option>Labdarība</option>
-                    <option>Talka</option>
-                    <option>Skolas pasākums</option>
-                    <option>Cits</option>
+                    <option value="Labdarība">Labdarība</option>
+                    <option value="Talka">Talka</option>
+                    <option value="Skolas pasākums">Skolas pasākums</option>
+                    <option value="Cits">Cits</option>
                 </select>
 
                 <label for="date">Datums</label>
@@ -48,7 +48,7 @@
                 <label for="location">Norises vieta</label>
                 <input id="location" name="location" type="text" placeholder="Norādi adresi vai vietu" required>
 
-                <label>Nepieciešamās brīvprātīgo lomas</label>
+                <label class="field-section-label">Nepieciešamās brīvprātīgo lomas</label>
                 <div class="role-builder" data-role-builder>
                     <div class="role-row">
                         <input name="role-name" type="text" placeholder="Piemēram, cleaner" aria-label="Brīvprātīgā loma">
@@ -62,7 +62,7 @@
                 <label for="description">Apraksts</label>
                 <textarea id="description" name="description" rows="5" placeholder="Apraksti pasākuma mērķi un norisi" required></textarea>
 
-                <label class="check-row"><input type="checkbox" name="whitelist"><span>Apstiprini brīvprātīgos manuāli</span></label>
+                <label class="check-row form-option"><input type="checkbox" name="whitelist"><span><strong>Apstiprini brīvprātīgos manuāli</strong><small>Tu izvēlēsies, kuri pieteikumi tiek pieņemti.</small></span></label>
 
                 <label for="event-images">Pasākuma attēli (līdz 5)</label>
                 <input id="event-images" name="event-images" type="file" accept="image/jpeg,image/png,image/webp" multiple data-image-input>

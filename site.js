@@ -361,10 +361,17 @@ function setupEventDetail() {
     const blockedWords = ['spamword', 'scamword'];
     let currentUser;
     const load = async () => {
-        const result = await supabaseClient.from('events').select('id, title, category, event_date, location, description, volunteer_roles, creator_id, profiles!events_creator_id_fkey(full_name)').eq('id', eventId).single();
+        const result = await supabaseClient.from('events').select('id, title, category, event_date, location, description, volunteer_roles, creator_id, status, profiles!events_creator_id_fkey(full_name)').eq('id', eventId).single();
         if (result.error) { detail.innerHTML = `<h1>Pasākums nav atrasts</h1><p>${escapeHtml(result.error.message)}</p>`; return; }
         const event = result.data;
-        detail.innerHTML = `<p class="eyebrow">${escapeHtml(event.category)}</p><h1>${escapeHtml(event.title)}</h1><p>${escapeHtml(event.description)}</p><p class="event-meta">${escapeHtml(event.event_date)} · ${escapeHtml(event.location)} · Organizators: ${escapeHtml(event.profiles?.full_name || '')}</p>${event.volunteer_roles ? `<p class="event-roles"><strong>Lomas:</strong> ${escapeHtml(event.volunteer_roles)}</p>` : ''}`;
+        if (event.status === 'archived') {
+            detail.innerHTML = `<p class="eyebrow">${escapeHtml(event.category)}</p><h1>${escapeHtml(event.title)}</h1><p class="event-deleted-message">Šis pasākums ir dzēsts un vairs nav pieejams.</p>`;
+            document.querySelector('[data-event-join]')?.remove();
+            document.querySelector('[data-organizer-panel]')?.remove();
+            document.querySelector('[data-event-chat]')?.remove();
+            return;
+        }
+        detail.innerHTML = `<p class="eyebrow">${escapeHtml(event.category)}</p><h1>${escapeHtml(event.title)}</h1><div class="event-detail-grid"><div class="event-detail-block"><span class="detail-label">Apraksts</span><p>${escapeHtml(event.description)}</p></div><div class="event-detail-block"><span class="detail-label">Norises vieta</span><p class="event-location">${escapeHtml(event.location)}</p><span class="detail-label">Datums</span><p class="event-meta">${escapeHtml(event.event_date)}</p></div>${event.volunteer_roles ? `<div class="event-detail-block event-detail-roles"><span class="detail-label">Nepieciešamās lomas</span><p class="event-roles">${escapeHtml(event.volunteer_roles)}</p></div>` : ''}<div class="event-detail-block"><span class="detail-label">Organizators</span><p>${escapeHtml(event.profiles?.full_name || '')}</p></div></div>`;
         currentUser = await getCurrentUser();
         if (currentUser?.id === event.creator_id) {
             joinForm?.closest('[data-event-join]')?.remove();
@@ -619,8 +626,8 @@ async function renderCustomEvents() {
 
     const { data: approvedEvents, error } = await supabaseClient
         .from('events')
-        .select('id, title, category, event_date, location, description, volunteer_roles, event_images(storage_path)')
-        .eq('status', 'approved')
+        .select('id, title, category, event_date, location, description, volunteer_roles, status, event_images(storage_path)')
+        .in('status', ['approved', 'archived'])
         .order('event_date', { ascending: true });
 
     if (error) {
@@ -637,8 +644,9 @@ async function renderCustomEvents() {
         return normalized;
     };
 
+    const availableEvents = approvedEvents.filter((event) => event.status === 'approved');
     if (list) list.innerHTML = approvedEvents.length ? approvedEvents.map((event) => `
-        <div class="event-card" data-category="${escapeHtml(categoryKey(event.category))}">
+        <div class="event-card${event.status === 'archived' ? ' event-card-deleted' : ''}" data-category="${escapeHtml(categoryKey(event.category))}" data-event-search="${escapeHtml([event.title, event.description, event.category, event.location, event.volunteer_roles].filter(Boolean).join(' '))}">
             <div class="card-badge">${escapeHtml(event.category)}</div>
             ${event.event_images?.[0] ? `<img class="event-image" src="${supabaseClient.storage.from('event-images').getPublicUrl(event.event_images[0].storage_path).data.publicUrl}" alt="${escapeHtml(event.title)}">` : ''}
             <h3>${escapeHtml(event.title)}</h3>
@@ -648,11 +656,10 @@ async function renderCustomEvents() {
                 <span>📍 ${escapeHtml(event.location)}</span>
             </div>
             ${event.volunteer_roles ? `<p class="event-roles"><strong>Lomas:</strong> ${escapeHtml(event.volunteer_roles)}</p>` : ''}
-            <a href="event.html?id=${encodeURIComponent(event.id)}" class="btn-card">Skatīt pasākumu</a>
-            <a href="report.html?event=${encodeURIComponent(event.id)}" class="text-button">Ziņot par pasākumu</a>
+            ${event.status === 'archived' ? '<p class="event-deleted-message">Dzēsts, vairs nav pieejams.</p>' : `<a href="event.html?id=${encodeURIComponent(event.id)}" class="btn-card">Skatīt pasākumu</a><a href="report.html?event=${encodeURIComponent(event.id)}" class="text-button">Ziņot par pasākumu</a>`}
         </div>
     `).join('') : '';
-    if (homeList) homeList.innerHTML = approvedEvents.length ? approvedEvents.slice(0, 2).map((event) => `
+    if (homeList) homeList.innerHTML = availableEvents.length ? availableEvents.slice(0, 2).map((event) => `
         <article class="home-event-card">
             <span class="event-kind">${escapeHtml(event.category)}</span>
             <p class="event-date">${escapeHtml(event.event_date)}</p>
@@ -672,30 +679,27 @@ function setupEventFilters() {
     const section = document.querySelector('.events-grid-section');
     if (!search || !category || !section) return;
 
-    const normalize = (value) => String(value).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    const normalize = (value) => String(value || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ').trim();
+    const list = section.querySelector('.custom-events-grid');
     const filterEvents = () => {
         const query = normalize(search.value.trim());
-        const selectedCategory = category.value;
+        const selectedCategory = normalize(category.value);
         let visibleCount = 0;
-        section.querySelectorAll('.custom-events-grid .event-card').forEach((card) => {
-            const searchableText = normalize([
-                card.querySelector('h3')?.textContent,
-                card.querySelector('.card-desc')?.textContent,
-                card.querySelector('.card-meta')?.textContent
-            ].filter(Boolean).join(' '));
+        list.querySelectorAll('.event-card').forEach((card) => {
+            const searchableText = normalize(card.dataset.eventSearch || card.textContent);
             const cardCategory = normalize(card.dataset.category || '');
             const matchesSearch = !query || searchableText.includes(query);
-            const matchesCategory = !selectedCategory || cardCategory === normalize(selectedCategory);
+            const matchesCategory = !selectedCategory || cardCategory === selectedCategory;
             card.hidden = !(matchesSearch && matchesCategory);
             if (!card.hidden) visibleCount += 1;
         });
 
-        let emptyState = section.querySelector('.no-results');
+        let emptyState = list.querySelector('.no-results');
         if (!visibleCount) {
             if (!emptyState) {
                 emptyState = document.createElement('p');
                 emptyState.className = 'no-results';
-                section.append(emptyState);
+                list.append(emptyState);
             }
             emptyState.textContent = 'Pēc izvēlētajiem kritērijiem pasākumi nav atrasti.';
             emptyState.hidden = false;
@@ -731,16 +735,6 @@ function setupLoginForm() {
     }
 
     setupPasswordToggles(form);
-    document.querySelector('[data-forgot-password]')?.addEventListener('click', async () => {
-        const email = form.elements.email.value.trim();
-        if (!email) {
-            setFieldError(form, 'email', 'Vispirms ievadi savu e-pasta adresi.');
-            form.elements.email.focus();
-            return;
-        }
-        const { error } = await supabaseClient.auth.resetPasswordForEmail(email, { redirectTo: `${window.location.origin}${window.location.pathname.replace('login.html', 'login.html')}` });
-        showFormMessage(error ? error.message : 'Paroles atjaunošanas saite ir nosūtīta uz tavu e-pastu.', Boolean(error));
-    });
     form.addEventListener('submit', async (event) => {
         event.preventDefault();
         clearFormErrors(form);
@@ -768,10 +762,30 @@ function setupLoginForm() {
 async function setupProfilePage(currentUser) {
     const form = document.querySelector('[data-profile-form]');
     if (!form || !currentUser) return;
+    const passwordForm = document.querySelector('[data-password-form]');
+    const passwordMessage = document.querySelector('[data-password-message]');
+    const recoveryMode = window.location.hash.includes('type=recovery');
+    const currentPasswordField = passwordForm?.elements.currentPassword;
+    if (recoveryMode && currentPasswordField) {
+        currentPasswordField.required = false;
+        currentPasswordField.hidden = true;
+        passwordForm.querySelector('label[for="current-password"]').hidden = true;
+    }
     const myEvents = document.querySelector('[data-my-events]');
     if (myEvents) {
         const { data: events, error } = await supabaseClient.from('events').select('id, title, event_date, status').eq('creator_id', currentUser.id).order('created_at', { ascending: false });
-        myEvents.innerHTML = error ? `<p>${escapeHtml(error.message)}</p>` : events.length ? events.map((event) => `<div class="owned-event"><div><strong>${escapeHtml(event.title)}</strong><span>${escapeHtml(event.event_date)} · ${escapeHtml(event.status)}</span></div><a class="btn-card" href="create-event.html?edit=${encodeURIComponent(event.id)}">Rediģēt</a></div>`).join('') : '<p>Tu vēl neesi izveidojis pasākumus.</p>';
+        myEvents.innerHTML = error ? `<p>${escapeHtml(error.message)}</p>` : events.length ? events.map((event) => `<div class="owned-event"><div><strong>${escapeHtml(event.title)}</strong><span>${escapeHtml(event.event_date)} · ${event.status === 'archived' ? 'Dzēsts, vairs nav pieejams' : escapeHtml(event.status)}</span></div>${event.status === 'archived' ? '<span class="event-deleted-label">Dzēsts</span>' : `<div class="owned-event-actions"><a class="btn-card" href="create-event.html?edit=${encodeURIComponent(event.id)}">Rediģēt</a><button class="table-button table-button-danger" type="button" data-delete-event="${escapeHtml(event.id)}">Dzēst</button></div>`}</div>`).join('') : '<p>Tu vēl neesi izveidojis pasākumus.</p>';
+        myEvents.querySelectorAll('[data-delete-event]').forEach((button) => button.addEventListener('click', async () => {
+            if (!window.confirm('Vai tiešām vēlies dzēst šo pasākumu? Citi redzēs, ka tas vairs nav pieejams.')) return;
+            button.disabled = true;
+            const { error: deleteError } = await supabaseClient.from('events').update({ status: 'archived' }).eq('id', button.dataset.deleteEvent).eq('creator_id', currentUser.id);
+            if (deleteError) {
+                button.disabled = false;
+                showFormMessage(deleteError.message, true);
+                return;
+            }
+            window.location.reload();
+        }));
     }
     form.elements.fullName.value = currentUser.profile?.full_name || '';
     form.elements.email.value = currentUser.email || '';
@@ -779,6 +793,42 @@ async function setupProfilePage(currentUser) {
         event.preventDefault();
         const { error } = await supabaseClient.rpc('update_my_profile', { new_full_name: form.elements.fullName.value.trim() });
         showFormMessage(error ? error.message : 'Profils atjaunināts.', Boolean(error));
+    });
+    passwordForm?.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const currentPassword = passwordForm.elements.currentPassword.value;
+        const password = passwordForm.elements.password.value;
+        const confirmation = passwordForm.elements.passwordConfirm.value;
+        passwordMessage.textContent = '';
+        passwordMessage.classList.remove('form-error');
+        if (!recoveryMode) {
+            const { error: currentPasswordError } = await supabaseClient.auth.signInWithPassword({
+                email: currentUser.email,
+                password: currentPassword
+            });
+            if (currentPasswordError) {
+                passwordMessage.textContent = 'Pašreizējā parole nav pareiza.';
+                passwordMessage.classList.add('form-error');
+                return;
+            }
+        }
+        if (password.length < 8 || password !== confirmation) {
+            passwordMessage.textContent = password.length < 8 ? 'Parolei jābūt vismaz 8 rakstzīmes garai.' : 'Paroles nesakrīt.';
+            passwordMessage.classList.add('form-error');
+            return;
+        }
+        const { error } = await supabaseClient.auth.updateUser({ password });
+        passwordMessage.textContent = error ? error.message : 'Parole veiksmīgi nomainīta.';
+        passwordMessage.classList.toggle('form-error', Boolean(error));
+        if (!error) {
+            passwordForm.reset();
+            if (recoveryMode) window.history.replaceState({}, document.title, 'profile.html');
+        }
+    });
+    document.querySelector('[data-profile-reset]')?.addEventListener('click', async () => {
+        const { error } = await supabaseClient.auth.resetPasswordForEmail(currentUser.email, { redirectTo: `${window.location.origin}/profile.html` });
+        passwordMessage.textContent = error ? error.message : 'Atiestatīšanas e-pasts ir nosūtīts.';
+        passwordMessage.classList.toggle('form-error', Boolean(error));
     });
     document.querySelector('[data-export-data]')?.addEventListener('click', async () => {
         const { data, error } = await supabaseClient.rpc('export_my_data');
@@ -861,6 +911,7 @@ function setupPasswordToggles(form) {
             const revealed = input.type === 'text';
             input.type = revealed ? 'password' : 'text';
             button.classList.toggle('is-revealed', !revealed);
+            button.textContent = revealed ? 'Rādīt' : 'Slēpt';
             button.setAttribute('aria-label', revealed ? 'Rādīt paroli' : 'Slēpt paroli');
         });
     });

@@ -263,7 +263,7 @@ using (creator_id = auth.uid()) with check (creator_id = auth.uid());
 drop policy if exists "Everyone can view approved events" on public.events;
 create policy "Everyone can view approved events"
 on public.events for select to anon, authenticated
-using (status = 'approved' or creator_id = auth.uid() or public.is_admin());
+using (status in ('approved', 'archived') or creator_id = auth.uid() or public.is_admin());
 
 drop policy if exists "Creators can update pending events" on public.events;
 create policy "Creators can update pending events"

@@ -32,6 +32,21 @@
                 <p class="form-note" data-form-message></p>
             </form>
         </section>
+        <section class="card simple-form-card profile-password-card">
+            <h2>Parole</h2>
+            <p class="section-copy">Nomaini paroli vai nosūti atiestatīšanas saiti uz savu e-pastu.</p>
+            <form class="simple-form" data-password-form>
+                <label for="current-password">Pašreizējā parole</label>
+                <input id="current-password" name="currentPassword" type="password" autocomplete="current-password" required>
+                <label for="new-password">Jaunā parole</label>
+                <input id="new-password" name="password" type="password" minlength="8" autocomplete="new-password" required>
+                <label for="confirm-password">Apstiprini jauno paroli</label>
+                <input id="confirm-password" name="passwordConfirm" type="password" minlength="8" autocomplete="new-password" required>
+                <button class="btn-primary" type="submit">Nomainīt paroli</button>
+                <p class="form-note" data-password-message></p>
+            </form>
+            <button class="btn-card password-reset-button" type="button" data-profile-reset>Nosūtīt atiestatīšanas e-pastu</button>
+        </section>
         <section class="card profile-actions">
             <h2>Personas dati</h2>
             <p>Lejupielādē savus datus vai pieprasi konta neatgriezenisku dzēšanu.</p>
