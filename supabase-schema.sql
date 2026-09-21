@@ -45,6 +45,7 @@ create table if not exists public.events (
     event_date date not null,
     location text not null,
     volunteer_roles text,
+    volunteer_role_requirements jsonb not null default '[]'::jsonb,
     description text not null,
     whitelist_volunteers boolean not null default false,
     status public.event_status not null default 'pending',
@@ -54,6 +55,7 @@ create table if not exists public.events (
 );
 
 alter table public.events add column if not exists whitelist_volunteers boolean not null default false;
+alter table public.events add column if not exists volunteer_role_requirements jsonb not null default '[]'::jsonb;
 
 create table if not exists public.event_images (
     id uuid primary key default gen_random_uuid(),
@@ -68,10 +70,13 @@ create table if not exists public.event_applications (
     event_id uuid not null references public.events(id) on delete cascade,
     volunteer_id uuid not null references public.profiles(id) on delete cascade,
     message text,
+    requested_role text,
     status public.application_status not null default 'pending',
     created_at timestamptz not null default now(),
     unique (event_id, volunteer_id)
 );
+
+alter table public.event_applications add column if not exists requested_role text;
 
 create table if not exists public.event_messages (
     id uuid primary key default gen_random_uuid(),
@@ -250,6 +255,66 @@ grant execute on function public.update_my_profile(text) to authenticated;
 grant execute on function public.export_my_data() to authenticated;
 grant execute on function public.delete_my_account() to authenticated;
 
+-- Capacity is enforced in the database, not only in the browser.  Organizers,
+-- rather than site administrators, decide who is admitted to their events.
+create or replace function public.set_event_application_status(application_id uuid, new_status public.application_status)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+    application_record public.event_applications%rowtype;
+    event_record public.events%rowtype;
+    role_capacity integer;
+    filled_count integer;
+begin
+    select * into application_record from public.event_applications where id = application_id for update;
+    if not found then raise exception 'Application not found'; end if;
+    select * into event_record from public.events where id = application_record.event_id for update;
+    if event_record.creator_id <> auth.uid() then raise exception 'Only the event organizer can review applications'; end if;
+    if new_status = 'approved' then
+        if application_record.requested_role is null or btrim(application_record.requested_role) = '' then
+            raise exception 'The volunteer must select a role';
+        end if;
+        select nullif(role_item ->> 'capacity', '')::integer into role_capacity
+        from jsonb_array_elements(event_record.volunteer_role_requirements) role_item
+        where role_item ->> 'name' = application_record.requested_role;
+        if coalesce(role_capacity, 0) < 1 then raise exception 'This role is no longer available'; end if;
+        select count(*) into filled_count from public.event_applications
+        where event_id = event_record.id and requested_role = application_record.requested_role and status = 'approved'
+        and id <> application_record.id;
+        if filled_count >= role_capacity then raise exception 'All places for this role are already filled'; end if;
+    end if;
+    update public.event_applications set status = new_status where id = application_id;
+end;
+$$;
+
+create or replace function public.event_role_availability(target_event_id uuid)
+returns table(role_name text, capacity integer, filled integer)
+language sql
+security definer
+set search_path = public
+stable
+as $$
+    select requirement ->> 'name', (requirement ->> 'capacity')::integer,
+        count(application.id)::integer
+    from public.events event_record
+    cross join lateral jsonb_array_elements(event_record.volunteer_role_requirements) requirement
+    left join public.event_applications application
+        on application.event_id = event_record.id
+        and application.requested_role = requirement ->> 'name'
+        and application.status = 'approved'
+    where event_record.id = target_event_id
+      and (event_record.status = 'approved' or event_record.creator_id = auth.uid() or public.is_admin())
+    group by requirement
+$$;
+
+revoke execute on function public.set_event_application_status(uuid, public.application_status) from public;
+revoke execute on function public.event_role_availability(uuid) from public;
+grant execute on function public.set_event_application_status(uuid, public.application_status) to authenticated;
+grant execute on function public.event_role_availability(uuid) to anon, authenticated;
+
 drop policy if exists "Authenticated users can request events" on public.events;
 create policy "Authenticated users can request events"
 on public.events for insert to authenticated
@@ -315,13 +380,10 @@ using (
 );
 
 drop policy if exists "Admins and event creators can update applications" on public.event_applications;
-create policy "Admins and event creators can update applications"
-on public.event_applications for update to authenticated
-using (
-    public.is_admin()
-    or exists (select 1 from public.events where id = event_id and creator_id = auth.uid())
-)
-with check (true);
+drop policy if exists "Event creators can update applications" on public.event_applications;
+-- Application decisions go through set_event_application_status(), which checks
+-- ownership and role capacity atomically.  There is intentionally no direct
+-- UPDATE policy for organizers or administrators.
 
 drop policy if exists "Event participants can read messages" on public.event_messages;
 create policy "Event participants can read messages"

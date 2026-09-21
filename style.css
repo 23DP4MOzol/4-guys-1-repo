@@ -997,3 +997,27 @@ body.dark-mode .role-section, body.dark-mode .featured-events { background: #101
     body:not(.auth-page) .navbar .auth-buttons a,
     body:not(.auth-page) .navbar .auth-buttons button { padding-left: .65rem; padding-right: .65rem; }
 }
+
+/* Auth controls: reserve room for the icon and keep its tap target centred. */
+.visually-hidden { clip: rect(0 0 0 0); clip-path: inset(50%); height: 1px; overflow: hidden; position: absolute; white-space: nowrap; width: 1px; }
+.auth-page .password-field input { padding-right: 3.5rem !important; }
+.password-toggle { align-items: center; border-radius: .45rem; display: inline-flex; height: 2.25rem; justify-content: center; right: .35rem; top: 50%; width: 2.25rem; }
+.password-toggle:hover, .password-toggle:focus-visible { background: #edf0fb; outline: 2px solid #5168d9; outline-offset: 1px; }
+
+/* The first desktop viewport is an intentional hero, not a cropped card. */
+@media (min-width: 761px) {
+    .home-page .home-hero { max-width: none; min-height: calc(100vh - 5rem); }
+}
+
+/* Event detail: one focused, responsive page instead of stacked narrow cards. */
+.event-page { margin: 0 auto; max-width: 1440px; padding-bottom: clamp(3rem, 7vw, 7rem); width: 100%; }
+.event-hero { background: #172a64; color: #fff; display: grid; gap: 2rem; min-height: 27rem; padding: clamp(3rem, 8vw, 7rem); position: relative; }
+.event-hero::after { border: 2rem solid rgba(255,180,103,.2); border-radius: 50%; content: ''; height: 22rem; position: absolute; right: -6rem; top: -9rem; width: 22rem; }
+.event-hero-copy, .event-facts { position: relative; z-index: 1; }.event-hero h1 { font-size: clamp(3rem, 7vw, 6rem); letter-spacing: -.065em; line-height: .95; margin: .7rem 0 1.2rem; max-width: 55rem; }.event-hero-copy > p:last-child { color: #d4dcff; font-size: 1.1rem; line-height: 1.7; max-width: 45rem; }.event-hero .eyebrow { color: #bdc9ff; }.event-facts { display: flex; flex-wrap: wrap; gap: .7rem; }.event-facts span { background: rgba(255,255,255,.12); border: 1px solid rgba(255,255,255,.2); border-radius: 99px; color: #eef1ff; font-size: .85rem; padding: .6rem .85rem; }
+.event-page-layout { display: grid; gap: 1.25rem; grid-template-columns: minmax(0, 1fr) minmax(18rem, .42fr); margin: -2.5rem auto 0; max-width: 1200px; padding: 0 2rem; position: relative; }.event-page-layout > .event-chat-card { grid-column: 1; }.event-join-card, .event-organizer-card { align-self: start; }.event-join-card { grid-column: 2; grid-row: 1; }.event-organizer-card { grid-column: 2; grid-row: 2; }.event-detail-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); max-width: none; }.event-detail-block { min-height: 11rem; }.event-map { border: 0; border-radius: .6rem; height: 12rem; margin-top: 1rem; width: 100%; }.role-capacity-list { display: flex; flex-wrap: wrap; gap: .65rem; margin-top: .8rem; }.role-capacity-list span { background: #edf0fb; border-radius: 99px; color: #364db5; font-size: .85rem; padding: .5rem .7rem; }.chat-list { display: grid; gap: .65rem; margin: 1rem 0; max-height: 20rem; overflow-y: auto; }.chat-list p { background: #f5f7fc; border-radius: .7rem; color: var(--text-muted); line-height: 1.5; padding: .7rem .85rem; }
+@media (max-width: 780px) { .event-hero { min-height: 0; padding: 3rem 1.25rem; }.event-page-layout { display: flex; flex-direction: column; margin-top: 0; padding: 1.25rem 1rem; }.event-page-layout > * { width: 100%; }.event-join-card, .event-organizer-card { order: 2; }.event-chat-card { order: 3; }.event-detail-grid { grid-template-columns: 1fr; }.event-detail-roles { grid-column: auto; } }
+
+/* Form pages use a calm centred reading axis without compromising input width. */
+.profile-main .simple-form > label, .profile-main .simple-form-card > h2, .profile-main .section-copy, .profile-actions { text-align: center; }
+.profile-main .profile-action-row { justify-content: center; }
+body[data-auth-required="true"] .events-main > .simple-form-card .simple-form > label { text-align: center; }
