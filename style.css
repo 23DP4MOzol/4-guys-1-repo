@@ -1037,7 +1037,7 @@ body[data-auth-required="true"] .events-main > .simple-form-card .simple-form > 
 
 /* Final navbar layout: the links stay centered in the viewport, not in leftover space. */
 @media (min-width: 781px) {
-    body:not(.auth-page) .navbar { display: flex; justify-content: space-between; min-height: 5rem; position: sticky; }
+    body:not(.auth-page) .navbar { display: flex; justify-content: space-between; min-height: 5rem; position: fixed; top: 0; left: 0; right: 0; width: 100%; z-index: 1000; }
     body:not(.auth-page) .navbar .logo { margin-right: 0; }
     body:not(.auth-page) .navbar .nav-links { left: 50%; margin: 0; position: absolute; transform: translateX(-50%); white-space: nowrap; }
     body:not(.auth-page) .navbar .nav-preferences { margin-left: auto; }
