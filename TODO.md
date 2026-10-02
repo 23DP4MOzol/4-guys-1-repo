@@ -28,3 +28,15 @@ This tracker keeps the larger requested refresh bounded and verifiable. Items ar
 
 - [ ] Review schema/RLS and configuration prerequisites.
 - [ ] Run available static and application checks; document anything needing Supabase-dashboard configuration.
+
+## Current layout follow-up
+
+- [x] Replace conflicting desktop navbar positioning with a final centered rule.
+- [x] Add a full-width event-creation layout with address suggestions and map selection.
+- [x] Store selected coordinates and render the event map beside the conversation.
+- [x] Add community statistics to the home hero and a wide profile hero.
+- [x] Rebuild the event detail into a non-overlapping two-column workspace.
+- [x] Remove duplicate event description content and add organizer/participant panels with avatar fallbacks.
+- [x] Add organizer event controls: edit, cancel, approve/reject, mute/unmute, remove participant, and delete messages.
+- [x] Add editable profile avatars and remove the redundant account-delete trigger.
+- [x] Remove the create-event card overlap, enable intentional map-wheel zoom, and block past event dates.

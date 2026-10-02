@@ -6,11 +6,21 @@ async function getCurrentUser() {
         return null;
     }
 
-    const { data: profile } = await supabaseClient
+    let { data: profile, error: profileError } = await supabaseClient
         .from('profiles')
-        .select('id, full_name, role, is_banned')
+        .select('id, full_name, role, is_banned, avatar_path')
         .eq('id', user.id)
         .single();
+
+    // Keep existing deployments usable until the avatar migration is applied.
+    if (profileError) {
+        const fallback = await supabaseClient
+            .from('profiles')
+            .select('id, full_name, role, is_banned')
+            .eq('id', user.id)
+            .single();
+        profile = fallback.data;
+    }
 
     if (profile?.is_banned) {
         await supabaseClient.auth.signOut();
@@ -18,6 +28,21 @@ async function getCurrentUser() {
     }
 
     return { ...user, profile };
+}
+
+function initialsForName(name) {
+    return String(name || 'Voluntio').split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join('').toUpperCase() || 'V';
+}
+
+function profileAvatarUrl(profile) {
+    if (!profile?.avatar_path) return '';
+    return supabaseClient.storage.from('profile-avatars').getPublicUrl(profile.avatar_path).data.publicUrl;
+}
+
+function profileAvatarMarkup(profile, className = 'person-avatar', label = '') {
+    const name = profile?.full_name || label || 'Voluntio lietotājs';
+    const imageUrl = profileAvatarUrl(profile);
+    return `<span class="${className}" aria-label="${escapeHtml(name)}"><span class="person-avatar-initials" aria-hidden="true">${escapeHtml(initialsForName(name))}</span>${imageUrl ? `<img class="person-avatar-image" src="${escapeHtml(imageUrl)}" alt="" onerror="this.hidden=true">` : ''}</span>`;
 }
 
 function showFormMessage(message, isError = false) {
@@ -61,9 +86,8 @@ function updateAuthLinks(currentUser) {
     }
 
     const displayName = currentUser.profile?.full_name || currentUser.email.split('@')[0];
-    const initials = displayName.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join('').toUpperCase();
     authButtons.innerHTML = `
-        <a class="user-profile" href="profile.html" aria-label="Atvērt profilu"><span class="user-avatar" aria-hidden="true">${escapeHtml(initials || 'V')}</span><span class="user-greeting">Sveiks, ${escapeHtml(displayName)}</span></a>
+        <a class="user-profile" href="profile.html" aria-label="Atvērt profilu">${profileAvatarMarkup(currentUser.profile, 'user-avatar', displayName)}<span class="user-greeting">Sveiks, ${escapeHtml(displayName)}</span></a>
         <button class="btn-login logout-button" type="button">Iziet</button>
     `;
 
@@ -76,22 +100,11 @@ function updateAuthLinks(currentUser) {
 async function setupHomeSummary() {
     const countElement = document.querySelector('[data-home-week-count]');
     if (!countElement) return;
-
-    const today = new Date();
-    const weekStart = new Date(today);
-    const day = weekStart.getDay() || 7;
-    weekStart.setDate(weekStart.getDate() - day + 1);
-    const nextWeek = new Date(weekStart);
-    nextWeek.setDate(nextWeek.getDate() + 7);
-    const toDate = (date) => date.toISOString().slice(0, 10);
-    const { count, error } = await supabaseClient
-        .from('events')
-        .select('id', { count: 'exact', head: true })
-        .eq('status', 'approved')
-        .gte('event_date', toDate(weekStart))
-        .lt('event_date', toDate(nextWeek));
-
-    countElement.textContent = error ? '0' : String(count || 0);
+    const memberElement = document.querySelector('[data-home-member-count]');
+    const { data, error } = await supabaseClient.rpc('community_stats');
+    const stats = data?.[0];
+    countElement.textContent = error ? '—' : String(stats?.upcoming_events || 0);
+    if (memberElement) memberElement.textContent = error ? '—' : String(stats?.members || 0);
 }
 
 function createCroppedPreview(file) {
@@ -118,6 +131,30 @@ function createCroppedPreview(file) {
     });
 }
 
+function createAvatarPreview(file) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+            const image = new Image();
+            image.onload = () => {
+                const canvas = document.createElement('canvas');
+                canvas.width = 512;
+                canvas.height = 512;
+                const context = canvas.getContext('2d');
+                const scale = Math.max(canvas.width / image.width, canvas.height / image.height);
+                const width = image.width * scale;
+                const height = image.height * scale;
+                context.drawImage(image, (canvas.width - width) / 2, (canvas.height - height) / 2, width, height);
+                resolve(canvas.toDataURL('image/jpeg', 0.86));
+            };
+            image.onerror = reject;
+            image.src = reader.result;
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+    });
+}
+
 function setupEventForm() {
     const form = document.querySelector('[data-event-form]');
     const input = document.querySelector('[data-image-input]');
@@ -128,6 +165,11 @@ function setupEventForm() {
     if (!form || !input || !preview) {
         return;
     }
+
+    const dateField = form.elements.date;
+    const today = new Date();
+    const localToday = new Date(today.getTime() - today.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+    dateField.min = localToday;
 
     const roleBuilder = form.querySelector('[data-role-builder]');
     const rolesField = form.elements.roles;
@@ -144,12 +186,14 @@ function setupEventForm() {
         capacity: Number(row.querySelector('[name="role-count"]').value)
     }));
     if (editId) {
-        supabaseClient.from('events').select('title, category, event_date, location, volunteer_roles, volunteer_role_requirements, description, whitelist_volunteers').eq('id', editId).single().then(({ data }) => {
+        supabaseClient.from('events').select('title, category, event_date, location, latitude, longitude, volunteer_roles, volunteer_role_requirements, description, whitelist_volunteers').eq('id', editId).single().then(({ data }) => {
             if (!data) return;
             form.elements.title.value = data.title;
             form.elements.category.value = data.category;
             form.elements.date.value = data.event_date;
             form.elements.location.value = data.location;
+            form.elements.latitude.value = data.latitude || '';
+            form.elements.longitude.value = data.longitude || '';
             form.elements.description.value = data.description;
             form.elements.whitelist.checked = data.whitelist_volunteers;
             const roles = Array.isArray(data.volunteer_role_requirements) && data.volunteer_role_requirements.length
@@ -210,6 +254,18 @@ function setupEventForm() {
             form.elements.title.focus();
             return;
         }
+        if (!dateField.value || dateField.value < localToday) {
+            showFormMessage('Pasākuma datumam jābūt šodien vai nākotnē.', true);
+            dateField.focus();
+            return;
+        }
+        const latitude = Number(form.elements.latitude.value);
+        const longitude = Number(form.elements.longitude.value);
+        if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+            showFormMessage('Izvēlies pasākuma atrašanās vietu kartē, lai turpinātu.', true);
+            document.querySelector('[data-location-map]')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            return;
+        }
         if (!roleRequirements.length || roleRequirements.some((role) => !role.name || !Number.isInteger(role.capacity) || role.capacity < 1)) {
             showFormMessage('Pievieno vismaz vienu lomu un norādi vajadzīgo cilvēku skaitu.', true);
             roleBuilder.querySelector('[name="role-name"]')?.focus();
@@ -222,6 +278,8 @@ function setupEventForm() {
             category: form.elements.category.value,
             event_date: form.elements.date.value,
             location: form.elements.location.value.trim(),
+            latitude,
+            longitude,
             volunteer_roles: form.elements.roles.value.trim(),
             volunteer_role_requirements: roleRequirements,
             description: form.elements.description.value.trim(),
@@ -277,6 +335,117 @@ function setupEventForm() {
         preview.innerHTML = '';
         window.location.href = `event.html?id=${encodeURIComponent(eventRecord.id)}`;
     });
+}
+
+function setupLocationPicker() {
+    const input = document.querySelector('[data-location-search]');
+    const mapElement = document.querySelector('[data-location-map]');
+    const results = document.querySelector('[data-location-results]');
+    if (!input || !mapElement || !results) return;
+    if (!window.L) {
+        mapElement.innerHTML = '<p class="map-unavailable">Karti neizdevās ielādēt. Pārlādē lapu un mēģini vēlreiz.</p>';
+        return;
+    }
+
+    const tileUrl = window.VOLUNTIO_MAP_TILE_URL || 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
+    const tileOptions = {
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap</a> contributors',
+        maxZoom: 19,
+        referrerPolicy: 'strict-origin-when-cross-origin'
+    };
+    let map;
+    try {
+        map = window.L.map(mapElement, { scrollWheelZoom: true }).setView([56.9496, 24.1052], 7);
+        const tiles = window.L.tileLayer(tileUrl, tileOptions).addTo(map);
+        let tileFailureShown = false;
+        tiles.on('tileerror', () => {
+            if (tileFailureShown) return;
+            tileFailureShown = true;
+            results.innerHTML = '<p>Kartes flīzes pašlaik nav pieejamas. Vari turpināt, meklējot vietu vai atzīmējot punktu kartē vēlāk.</p>';
+        });
+        // The map sits in a CSS grid. Wait for that grid to be painted before
+        // measuring it, otherwise Leaflet can initialise with a 0px pane.
+        window.requestAnimationFrame(() => map.invalidateSize());
+        window.setTimeout(() => map.invalidateSize(), 180);
+        if (window.ResizeObserver) new ResizeObserver(() => map.invalidateSize({ animate: false })).observe(mapElement);
+    } catch {
+        mapElement.innerHTML = '<p class="map-unavailable">Karti neizdevās ielādēt. Pārlādē lapu un mēģini vēlreiz.</p>';
+        return;
+    }
+    let marker;
+    let timer;
+    const selectPlace = (place) => {
+        const latitude = Number(place.lat);
+        const longitude = Number(place.lon);
+        input.value = place.display_name;
+        input.form.elements.latitude.value = latitude;
+        input.form.elements.longitude.value = longitude;
+        if (marker) marker.remove();
+        marker = window.L.marker([latitude, longitude]).addTo(map);
+        map.setView([latitude, longitude], 15);
+        results.innerHTML = `<p class="location-selected">Izvēlēta vieta: <strong>${escapeHtml(place.display_name)}</strong></p>`;
+    };
+    const search = async () => {
+        const query = input.value.trim();
+        if (query.length < 3) return;
+        results.innerHTML = '<p>Meklē vietas...</p>';
+        try {
+            const response = await fetch(`https://nominatim.openstreetmap.org/search?format=jsonv2&limit=5&countrycodes=lv&q=${encodeURIComponent(query)}`);
+            const places = await response.json();
+            results.innerHTML = places.length ? places.map((place, index) => `<button type="button" class="location-result" data-location-result="${index}">${escapeHtml(place.display_name)}</button>`).join('') : '<p>Vietas netika atrastas. Precizē meklējumu vai ievadi adresi manuāli.</p>';
+            results.querySelectorAll('[data-location-result]').forEach((button) => button.addEventListener('click', () => selectPlace(places[Number(button.dataset.locationResult)])));
+        } catch {
+            results.innerHTML = '<p>Vietu meklēšana pašlaik nav pieejama. Vari ievadīt adresi manuāli.</p>';
+        }
+    };
+    input.addEventListener('input', () => { window.clearTimeout(timer); timer = window.setTimeout(search, 350); });
+    map.on('click', async ({ latlng }) => {
+        input.form.elements.latitude.value = latlng.lat;
+        input.form.elements.longitude.value = latlng.lng;
+        if (marker) marker.remove();
+        marker = window.L.marker(latlng).addTo(map);
+        try {
+            const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${latlng.lat}&lon=${latlng.lng}`);
+            const place = await response.json();
+            input.value = place.display_name || `${latlng.lat.toFixed(5)}, ${latlng.lng.toFixed(5)}`;
+        } catch { input.value = `${latlng.lat.toFixed(5)}, ${latlng.lng.toFixed(5)}`; }
+        results.innerHTML = '<p class="location-selected">Vieta izvēlēta kartē.</p>';
+    });
+}
+
+function setupEventMap(event) {
+    const mapElement = document.querySelector('[data-event-map]');
+    const address = document.querySelector('[data-event-map-address]');
+    if (!mapElement) return;
+    if (address) address.textContent = event.location;
+    const latitude = Number(event.latitude);
+    const longitude = Number(event.longitude);
+    if (event.latitude === null || event.longitude === null || !Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+        mapElement.innerHTML = '<p class="map-unavailable">Precīza kartes atzīme šim agrāk izveidotajam pasākumam vēl nav pievienota.</p>';
+        return;
+    }
+    if (!window.L) {
+        mapElement.innerHTML = '<p class="map-unavailable">Karti neizdevās ielādēt. Pārlādē lapu un mēģini vēlreiz.</p>';
+        return;
+    }
+    try {
+        const map = window.L.map(mapElement, { scrollWheelZoom: true }).setView([latitude, longitude], 15);
+        const tileUrl = window.VOLUNTIO_MAP_TILE_URL || 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
+        const tiles = window.L.tileLayer(tileUrl, {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap</a> contributors',
+            maxZoom: 19,
+            referrerPolicy: 'strict-origin-when-cross-origin'
+        }).addTo(map);
+        tiles.once('tileerror', () => {
+            mapElement.insertAdjacentHTML('beforeend', '<p class="map-unavailable">Kartes flīzes pašlaik nav pieejamas.</p>');
+        });
+        window.L.marker([latitude, longitude]).addTo(map).bindPopup(escapeHtml(event.location)).openPopup();
+        window.requestAnimationFrame(() => map.invalidateSize());
+        window.setTimeout(() => map.invalidateSize(), 180);
+        if (window.ResizeObserver) new ResizeObserver(() => map.invalidateSize({ animate: false })).observe(mapElement);
+    } catch {
+        mapElement.innerHTML = '<p class="map-unavailable">Karti neizdevās ielādēt. Pārlādē lapu un mēģini vēlreiz.</p>';
+    }
 }
 
 async function setupApplicationForm() {
@@ -403,7 +572,7 @@ function setupEventDetail() {
     const blockedWords = ['spamword', 'scamword'];
     let currentUser;
     const load = async () => {
-        const result = await supabaseClient.from('events').select('id, title, category, event_date, location, description, volunteer_roles, volunteer_role_requirements, creator_id, status, profiles!events_creator_id_fkey(full_name)').eq('id', eventId).single();
+        const result = await supabaseClient.from('events').select('id, title, category, event_date, location, latitude, longitude, description, volunteer_roles, volunteer_role_requirements, creator_id, status, profiles!events_creator_id_fkey(full_name, avatar_path)').eq('id', eventId).single();
         if (result.error) { detail.innerHTML = `<h1>Pasākums nav atrasts</h1><p>${escapeHtml(result.error.message)}</p>`; return; }
         const event = result.data;
         if (event.status === 'archived') {
@@ -415,8 +584,24 @@ function setupEventDetail() {
         }
         const { data: availability } = await supabaseClient.rpc('event_role_availability', { target_event_id: event.id });
         const roles = (availability || eventRoles(event)).map((role) => ({ name: role.role_name || role.name, capacity: Number(role.capacity), filled: Number(role.filled || 0) }));
-        detail.innerHTML = `<div class="event-hero-copy"><p class="eyebrow">${escapeHtml(event.category)}</p><h1>${escapeHtml(event.title)}</h1><p>${escapeHtml(event.description)}</p></div><div class="event-facts"><span>📅 ${escapeHtml(event.event_date)}</span><span>📍 ${escapeHtml(event.location)}</span><span>👥 ${roles.reduce((total, role) => total + role.filled, 0)} / ${roles.reduce((total, role) => total + role.capacity, 0)} brīvprātīgie</span></div><div class="event-detail-grid"><div class="event-detail-block"><span class="detail-label">Par pasākumu</span><p>${escapeHtml(event.description)}</p></div><div class="event-detail-block"><span class="detail-label">Norises vieta</span><p class="event-location">${escapeHtml(event.location)}</p><iframe class="event-map" title="Pasākuma vieta" loading="lazy" src="https://www.openstreetmap.org/export/embed.html?search=${encodeURIComponent(event.location)}"></iframe></div><div class="event-detail-block event-detail-roles"><span class="detail-label">Nepieciešamās lomas</span><div class="role-capacity-list">${roles.map((role) => `<span>${escapeHtml(role.name)} <strong>(${role.filled}/${role.capacity})</strong></span>`).join('') || '<span>Lomas nav norādītas.</span>'}</div></div><div class="event-detail-block"><span class="detail-label">Organizators</span><p>${escapeHtml(event.profiles?.full_name || '')}</p></div></div>`;
+        detail.innerHTML = `<div class="event-hero-copy"><p class="eyebrow">${escapeHtml(event.category)}</p><h1>${escapeHtml(event.title)}</h1><p>${escapeHtml(event.description)}</p></div><div class="event-facts"><span>📅 ${escapeHtml(event.event_date)}</span><span>📍 ${escapeHtml(event.location)}</span><span>👥 ${roles.reduce((total, role) => total + role.filled, 0)} / ${roles.reduce((total, role) => total + role.capacity, 0)} brīvprātīgie</span></div><div class="event-detail-grid"><div class="event-detail-block event-detail-roles"><span class="detail-label">Nepieciešamās lomas</span><div class="role-capacity-list">${roles.map((role) => `<span>${escapeHtml(role.name)} <strong>(${role.filled}/${role.capacity})</strong></span>`).join('') || '<span>Lomas nav norādītas.</span>'}</div></div></div>`;
+        detail.dataset.creatorId = event.creator_id;
+        setupEventMap(event);
         currentUser = await getCurrentUser();
+        const organizerElement = document.querySelector('[data-event-organizer]');
+        if (organizerElement) organizerElement.innerHTML = `<div class="event-person-row">${profileAvatarMarkup(event.profiles, 'event-person-avatar', event.profiles?.full_name)}<div><strong>${escapeHtml(event.profiles?.full_name || 'Voluntio organizators')}</strong><span>Pasākuma organizators</span></div></div>`;
+        const participantsElement = document.querySelector('[data-event-participants]');
+        const loadParticipants = async () => {
+            if (!participantsElement) return [];
+            const { data, error } = await supabaseClient.rpc('event_participants', { event_id: event.id });
+            if (error) {
+                participantsElement.innerHTML = '<p class="section-copy">Dalībnieku saraksts būs redzams pēc pieslēgšanās.</p>';
+                return [];
+            }
+            participantsElement.innerHTML = data.length ? data.map((participant) => `<div class="event-person-row">${profileAvatarMarkup(participant, 'event-person-avatar', participant.full_name)}<div><strong>${escapeHtml(participant.full_name)}</strong><span>${escapeHtml(participant.requested_role || 'Brīvprātīgais')}${participant.is_muted ? ' · saruna apturēta' : ''}</span></div></div>`).join('') : '<p class="section-copy">Vēl neviens nav pievienojies.</p>';
+            return data;
+        };
+        let participants = await loadParticipants();
         const requestedRole = joinForm?.elements.requestedRole;
         if (requestedRole) requestedRole.innerHTML = roles.length
             ? `<option value="">Izvēlies lomu</option>${roles.filter((role) => role.filled < role.capacity).map((role) => `<option value="${escapeHtml(role.name)}">${escapeHtml(role.name)} (${role.filled}/${role.capacity})</option>`).join('')}`
@@ -427,13 +612,27 @@ function setupEventDetail() {
             const applications = document.querySelector('[data-organizer-applications]');
             panel.hidden = false;
             const loadApplications = async () => {
-                const { data } = await supabaseClient.from('event_applications').select('id, status, message, profiles(full_name)').eq('event_id', event.id).order('created_at');
-                applications.innerHTML = (data || []).map((application) => `<div class="owned-event"><div><strong>${escapeHtml(application.profiles?.full_name || 'Lietotājs')}</strong><span>${escapeHtml(application.message || '')} · ${escapeHtml(application.status)}</span></div>${application.status === 'pending' ? `<button class="table-button" type="button" data-application-id="${application.id}" data-application-status="approved">Apstiprināt</button> <button class="table-button table-button-danger" type="button" data-application-id="${application.id}" data-application-status="rejected">Noraidīt</button>` : ''}</div>`).join('') || '<p>Pieteikumu nav.</p>';
+                const { data } = await supabaseClient.from('event_applications').select('id, volunteer_id, requested_role, status, message, profiles(full_name, avatar_path)').eq('event_id', event.id).order('created_at');
+                const mutedParticipants = new Set(participants.filter((participant) => participant.is_muted).map((participant) => participant.id));
+                applications.innerHTML = `<div class="organizer-event-actions"><a class="btn-card" href="create-event.html?edit=${encodeURIComponent(event.id)}">Rediģēt pasākumu</a><button class="table-button table-button-danger" type="button" data-cancel-event>Atcelt pasākumu</button></div>${(data || []).map((application) => `<div class="owned-event"><div class="event-person-with-copy">${profileAvatarMarkup(application.profiles, 'event-person-avatar', application.profiles?.full_name)}<span><strong>${escapeHtml(application.profiles?.full_name || 'Lietotājs')}</strong><small>${escapeHtml(application.requested_role || 'Loma nav norādīta')} · ${escapeHtml(application.status)}${application.message ? ` · ${escapeHtml(application.message)}` : ''}</small></span></div></div>${application.status === 'pending' ? `<button class="table-button" type="button" data-application-id="${application.id}" data-application-status="approved">Apstiprināt</button><button class="table-button table-button-danger" type="button" data-application-id="${application.id}" data-application-status="rejected">Noraidīt</button>` : application.status === 'approved' ? `<div class="moderation-actions"><button class="moderation-button" type="button" data-participant-action="${mutedParticipants.has(application.volunteer_id) ? 'unmute' : 'mute'}" data-participant-id="${application.volunteer_id}">${mutedParticipants.has(application.volunteer_id) ? 'Atļaut rakstīt' : 'Apklusināt'}</button><button class="moderation-button moderation-button-danger" type="button" data-participant-action="kick" data-participant-id="${application.volunteer_id}">Izņemt</button></div>` : ''}</div>`).join('') || '<p>Pieteikumu nav.</p>'}`;
                 applications.querySelectorAll('[data-application-id]').forEach((button) => button.addEventListener('click', async () => {
                     const { error } = await supabaseClient.rpc('set_event_application_status', { application_id: button.dataset.applicationId, new_status: button.dataset.applicationStatus });
                     if (error) showFormMessage(error.message, true);
-                    else loadApplications();
+                    else { participants = await loadParticipants(); loadApplications(); }
                 }));
+                applications.querySelectorAll('[data-participant-action]').forEach((button) => button.addEventListener('click', async () => {
+                    button.disabled = true;
+                    const { error } = await supabaseClient.rpc('organizer_set_participant_state', { event_id: event.id, participant_id: button.dataset.participantId, action: button.dataset.participantAction });
+                    if (error) { button.disabled = false; showFormMessage(error.message, true); return; }
+                    participants = await loadParticipants();
+                    loadApplications();
+                }));
+                applications.querySelector('[data-cancel-event]')?.addEventListener('click', async () => {
+                    if (!window.confirm('Vai tiešām atcelt šo pasākumu? Tas vairs nebūs pieejams dalībniekiem.')) return;
+                    const { error } = await supabaseClient.from('events').update({ status: 'archived' }).eq('id', event.id).eq('creator_id', currentUser.id);
+                    if (error) showFormMessage(error.message, true);
+                    else window.location.reload();
+                });
             };
             loadApplications();
         }
@@ -447,17 +646,29 @@ function setupEventDetail() {
             if (!error) joinForm.querySelector('button').disabled = true;
         });
         const { data: ownApplication } = currentUser ? await supabaseClient.from('event_applications').select('status').eq('event_id', event.id).eq('volunteer_id', currentUser.id).maybeSingle() : { data: null };
-        const canChat = currentUser?.id === event.creator_id || ownApplication?.status === 'approved';
+        const isMuted = participants.some((participant) => participant.id === currentUser?.id && participant.is_muted);
+        const canChat = (currentUser?.id === event.creator_id || ownApplication?.status === 'approved') && !isMuted;
         if (!canChat) {
             chatForm?.remove();
             const notice = document.querySelector('[data-chat-notice]');
-            if (notice) notice.hidden = false;
+            if (notice) {
+                notice.textContent = isMuted
+                    ? 'Organizators ir apturējis tavas rakstīšanas tiesības šajā sarunā.'
+                    : 'Lai rakstītu sarunā, vispirms pievienojies pasākumam un sagaidi apstiprinājumu.';
+                notice.hidden = false;
+            }
         } else loadChat();
     };
     const loadChat = async () => {
         if (!chatList) return;
-        const { data } = await supabaseClient.from('event_messages').select('id, message, created_at, profiles(full_name)').eq('event_id', eventId).order('created_at');
-        chatList.innerHTML = (data || []).map((message) => `<p><strong>${escapeHtml(message.profiles?.full_name || 'Lietotājs')}:</strong> ${escapeHtml(message.message)}</p>`).join('') || '<p>Šeit vēl nav ziņu.</p>';
+        const { data } = await supabaseClient.from('event_messages').select('id, sender_id, message, created_at, profiles(full_name, avatar_path)').eq('event_id', eventId).order('created_at');
+        chatList.innerHTML = (data || []).map((message) => `<div class="chat-message">${profileAvatarMarkup(message.profiles, 'event-person-avatar', message.profiles?.full_name)}<div class="chat-message-copy"><strong>${escapeHtml(message.profiles?.full_name || 'Lietotājs')}</strong><p>${escapeHtml(message.message)}</p></div>${currentUser?.id && message.sender_id !== currentUser.id && currentUser.id === document.querySelector('[data-event-detail]')?.dataset.creatorId ? `<button class="chat-delete" type="button" data-delete-message="${message.id}">Dzēst</button>` : ''}</div>`).join('') || '<p>Šeit vēl nav ziņu.</p>';
+        chatList.querySelectorAll('[data-delete-message]').forEach((button) => button.addEventListener('click', async () => {
+            if (!window.confirm('Vai dzēst šo ziņu no pasākuma sarunas?')) return;
+            const { error } = await supabaseClient.from('event_messages').delete().eq('id', button.dataset.deleteMessage);
+            if (error) showFormMessage(error.message, true);
+            else loadChat();
+        }));
     };
     chatForm?.addEventListener('submit', async (event) => {
         event.preventDefault();
@@ -466,7 +677,7 @@ function setupEventDetail() {
         if (!user) { window.location.href = 'login.html'; return; }
         if (!value || blockedWords.some((word) => value.toLowerCase().includes(word))) { showFormMessage('Ziņa satur neatļautu tekstu.', true); return; }
         const { error } = await supabaseClient.from('event_messages').insert({ event_id: eventId, sender_id: user.id, message: value });
-        if (error) { showFormMessage(error.message, true); return; }
+        if (error) { showFormMessage('Ziņu pašlaik nevar nosūtīt. Iespējams, tev nav atļauts rakstīt šajā pasākuma sarunā.', true); return; }
         chatForm.reset();
         await loadChat();
     });
@@ -842,6 +1053,34 @@ async function setupProfilePage(currentUser) {
     if (!form || !currentUser) return;
     const passwordForm = document.querySelector('[data-password-form]');
     const passwordMessage = document.querySelector('[data-password-message]');
+    const avatarInput = form.querySelector('[data-profile-avatar-input]');
+    const avatarPreview = form.querySelector('[data-profile-avatar-preview]');
+    const avatarFallback = form.querySelector('[data-profile-avatar-fallback]');
+    let pendingAvatar;
+    const renderAvatar = (url = profileAvatarUrl(currentUser.profile)) => {
+        if (avatarFallback) avatarFallback.textContent = initialsForName(currentUser.profile?.full_name || currentUser.email);
+        if (!avatarPreview || !avatarFallback) return;
+        avatarPreview.hidden = !url;
+        avatarFallback.hidden = Boolean(url);
+        if (url) avatarPreview.src = url;
+    };
+    renderAvatar();
+    avatarInput?.addEventListener('change', async () => {
+        const file = avatarInput.files?.[0];
+        if (!file) return;
+        if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type) || file.size > 5 * 1024 * 1024) {
+            showFormMessage('Izvēlies JPG, PNG vai WEBP attēlu līdz 5 MB.', true);
+            avatarInput.value = '';
+            return;
+        }
+        try {
+            pendingAvatar = await createAvatarPreview(file);
+            renderAvatar(pendingAvatar);
+            showFormMessage('Attēls ir gatavs — saglabā profilu, lai to publicētu.');
+        } catch {
+            showFormMessage('Neizdevās apstrādāt profila attēlu.', true);
+        }
+    });
     const recoveryMode = window.location.hash.includes('type=recovery');
     const currentPasswordField = passwordForm?.elements.currentPassword;
     if (recoveryMode && currentPasswordField) {
@@ -869,8 +1108,34 @@ async function setupProfilePage(currentUser) {
     form.elements.email.value = currentUser.email || '';
     form.addEventListener('submit', async (event) => {
         event.preventDefault();
-        const { error } = await supabaseClient.rpc('update_my_profile', { new_full_name: form.elements.fullName.value.trim() });
-        showFormMessage(error ? error.message : 'Profils atjaunināts.', Boolean(error));
+        const newName = form.elements.fullName.value.trim();
+        const { error: nameError } = await supabaseClient.rpc('update_my_profile', { new_full_name: newName });
+        if (nameError) {
+            showFormMessage(nameError.message, true);
+            return;
+        }
+        currentUser.profile.full_name = newName;
+        if (pendingAvatar) {
+            const path = `${currentUser.id}/avatar.jpg`;
+            const { error: uploadError } = await supabaseClient.storage.from('profile-avatars').upload(path, dataUrlToBlob(pendingAvatar), {
+                contentType: 'image/jpeg',
+                upsert: true
+            });
+            if (uploadError) {
+                showFormMessage(`Vārds ir saglabāts, bet attēlu neizdevās augšupielādēt: ${uploadError.message}`, true);
+                return;
+            }
+            const { error: avatarError } = await supabaseClient.rpc('update_my_avatar_path', { new_avatar_path: path });
+            if (avatarError) {
+                showFormMessage(`Vārds ir saglabāts, bet attēlu neizdevās piesaistīt profilam: ${avatarError.message}`, true);
+                return;
+            }
+            currentUser.profile.avatar_path = path;
+            pendingAvatar = undefined;
+            renderAvatar(`${profileAvatarUrl(currentUser.profile)}?v=${Date.now()}`);
+        }
+        updateAuthLinks(currentUser);
+        showFormMessage('Profils atjaunināts.');
     });
     passwordForm?.addEventListener('submit', async (event) => {
         event.preventDefault();
@@ -918,14 +1183,8 @@ async function setupProfilePage(currentUser) {
         link.click();
         URL.revokeObjectURL(link.href);
     });
-    const deleteButton = document.querySelector('[data-show-delete-account]');
     const deleteForm = document.querySelector('[data-delete-account-form]');
     const deleteMessage = document.querySelector('[data-delete-account-message]');
-    deleteButton?.addEventListener('click', () => {
-        deleteButton.hidden = true;
-        deleteForm.hidden = false;
-        deleteForm.elements.password.focus();
-    });
     deleteForm?.addEventListener('submit', async (event) => {
         event.preventDefault();
         deleteMessage.textContent = '';
@@ -1037,6 +1296,8 @@ function updatePasswordStrength(value, form) {
 }
 
 let activeLanguage = 'lv';
+const originalTextValues = new WeakMap();
+const originalAttributeValues = new WeakMap();
 
 function setupPagePreferences() {
     const navbar = document.querySelector('.navbar');
@@ -1145,7 +1406,6 @@ function removeTranslationArtifacts() {
 }
 
 async function translatePage(targetLanguage) {
-    const sourceLanguage = activeLanguage;
     const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, {
         acceptNode(node) {
             const parent = node.parentElement;
@@ -1158,7 +1418,28 @@ async function translatePage(targetLanguage) {
     const attributes = [...document.querySelectorAll('input[placeholder], textarea[placeholder], [title]')]
         .filter((element) => !element.closest('[data-no-translate]'))
         .flatMap((element) => ['placeholder', 'title'].filter((attribute) => element.hasAttribute(attribute)).map((attribute) => ({ element, attribute })));
-    const items = [...textNodes.map((node) => ({ node, text: node.nodeValue })), ...attributes.map(({ element, attribute }) => ({ element, attribute, text: element.getAttribute(attribute) }))];
+    const items = [
+        ...textNodes.map((node) => {
+            if (!originalTextValues.has(node)) originalTextValues.set(node, node.nodeValue);
+            return { node, text: originalTextValues.get(node) };
+        }),
+        ...attributes.map(({ element, attribute }) => {
+            if (!originalAttributeValues.has(element)) originalAttributeValues.set(element, {});
+            const originals = originalAttributeValues.get(element);
+            if (!(attribute in originals)) originals[attribute] = element.getAttribute(attribute);
+            return { element, attribute, text: originals[attribute] };
+        })
+    ];
+
+    // Latvian is the authored source. Never translate English back into
+    // Latvian: that is what changed imperative wording such as “Izveidot”.
+    if (targetLanguage === 'lv') {
+        items.forEach((item) => {
+            if (item.node) item.node.nodeValue = item.text;
+            else item.element.setAttribute(item.attribute, item.text);
+        });
+        return;
+    }
 
     // Larger parallel batches keep dense pages as responsive as the homepage,
     // without reintroducing separator artifacts into translated content.
@@ -1166,7 +1447,7 @@ async function translatePage(targetLanguage) {
         const batch = items.slice(index, index + 24);
         const results = await Promise.all(batch.map(async (item) => {
             const original = item.text.trim();
-            return original ? translateWithApi(original, sourceLanguage, targetLanguage) : '';
+            return original ? translateWithApi(original, 'lv', targetLanguage) : '';
         }));
         batch.forEach((item, itemIndex) => {
             const original = item.text.trim();
@@ -1206,6 +1487,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     setupRegistrationForm();
     setupProfilePage(currentUser);
     setupEventForm();
+    setupLocationPicker();
     setupApplicationForm();
     setupReportForm();
     setupEventDetail();

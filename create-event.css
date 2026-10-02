@@ -1,0 +1,238 @@
+/* This is deliberately the same full-bleed hero treatment as profile.html. */
+.create-event-page .create-event-main {
+    max-width: none;
+    padding-bottom: clamp(4rem, 8vw, 7rem);
+    width: 100%;
+}
+
+.create-event-page .create-event-hero {
+    background: #172a64;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin: 0;
+    max-width: none;
+    min-height: 22rem;
+    overflow: hidden;
+    padding: clamp(3rem, 7vw, 6rem) max(1.5rem, calc((100vw - 1440px) / 2));
+    position: relative;
+    text-align: center;
+    width: 100%;
+}
+
+.create-event-page .create-event-hero::before {
+    background: rgba(67, 89, 189, .72);
+    border-radius: 50%;
+    content: '';
+    height: 32rem;
+    position: absolute;
+    right: -18rem;
+    top: -18rem;
+    width: 32rem;
+}
+
+.create-event-page .create-event-hero::after {
+    border: 2rem solid rgba(255, 180, 103, .16);
+    border-radius: 50%;
+    bottom: -9rem;
+    content: '';
+    height: 19rem;
+    left: -7rem;
+    position: absolute;
+    width: 19rem;
+}
+
+.create-event-page .create-event-hero h1,
+.create-event-page .create-event-hero p {
+    position: relative;
+    z-index: 1;
+}
+
+.create-event-page .create-event-hero h1 {
+    margin-left: auto;
+    margin-right: auto;
+    width: 100%;
+    text-align: center;
+}
+
+.create-event-page .create-event-hero p {
+    margin-left: auto;
+    margin-right: auto;
+    max-width: 42rem;
+}
+
+.create-event-page .create-event-card {
+    margin: clamp(2rem, 4vw, 4rem) auto 0;
+    max-width: 1180px;
+    width: calc(100% - clamp(2rem, 6vw, 5rem));
+}
+
+/* Keep the editor a single, predictable reading column. The generic form
+   rules elsewhere in the site must not place arbitrary fields side by side. */
+.create-event-page .create-event-card .simple-form {
+    display: grid;
+    gap: .8rem;
+    grid-template-columns: minmax(0, 1fr);
+}
+
+.create-event-page .create-event-card .simple-form > * {
+    grid-column: 1 / -1;
+    min-width: 0;
+}
+
+.create-event-page .create-event-card .simple-form > label {
+    margin-top: 1rem;
+    text-align: left;
+}
+
+.create-event-page .create-event-card .simple-form > input,
+.create-event-page .create-event-card .simple-form > select,
+.create-event-page .create-event-card .simple-form > textarea {
+    width: 100%;
+}
+
+.create-event-page .location-picker {
+    align-items: start;
+    grid-template-columns: minmax(0, 1fr);
+}
+
+/* Leaflet needs an actual height, rather than a minimum height, to keep its
+   panes stable while the wheel handler changes the zoom level. */
+.create-event-page .location-map {
+    height: 26rem;
+    min-height: 0;
+    width: 100%;
+}
+
+.create-event-page .location-map .leaflet-container {
+    cursor: grab;
+    height: 100%;
+    width: 100%;
+}
+
+.create-event-page .location-map .leaflet-container:active { cursor: grabbing; }
+
+.create-event-page .map-report-link {
+    color: var(--text-muted);
+    font-size: .8rem;
+    justify-self: start;
+    text-decoration-thickness: 1px;
+    text-underline-offset: .16em;
+}
+
+.create-event-page .role-add-button {
+    align-self: start;
+    background: #edf0fb;
+    border: 1px solid #bfcaf1;
+    border-radius: 999px;
+    color: #273d9b;
+    font-size: .9rem;
+    font-weight: 800;
+    justify-self: start;
+    padding: .72rem 1.15rem;
+    width: auto;
+}
+
+.create-event-page .role-add-button:hover,
+.create-event-page .role-add-button:focus-visible {
+    background: #364db5;
+    border-color: #364db5;
+    color: #fff;
+    outline: none;
+}
+
+body.dark-mode.create-event-page .create-event-card,
+body.dark-mode.create-event-page .location-map,
+body.dark-mode.create-event-page .location-results,
+body.dark-mode.create-event-page .location-result {
+    border-color: #31416f;
+}
+
+body.dark-mode.create-event-page .create-event-card {
+    background: #17224b;
+    border-color: #31416f !important;
+}
+
+body.dark-mode.create-event-page .simple-form input,
+body.dark-mode.create-event-page .simple-form select,
+body.dark-mode.create-event-page .simple-form textarea {
+    background: #111b3b;
+    border-color: #425584;
+    color: #f5f7ff;
+}
+
+body.dark-mode.create-event-page .simple-form input:focus,
+body.dark-mode.create-event-page .simple-form select:focus,
+body.dark-mode.create-event-page .simple-form textarea:focus {
+    border-color: #5168d9;
+}
+
+body.dark-mode.create-event-page .location-map,
+body.dark-mode.create-event-page .location-selected {
+    background: #111b3b;
+}
+
+body.dark-mode.create-event-page .location-result {
+    background: #202f5d;
+    color: #eef1ff;
+}
+
+body.dark-mode.create-event-page .location-result:hover {
+    border-color: #7084df;
+}
+
+body.dark-mode.create-event-page .field-help {
+    color: #bdc7e7;
+}
+
+body.dark-mode.create-event-page input[type='file'] {
+    color: #bdc7e7;
+}
+
+body.dark-mode.create-event-page .image-preview-grid {
+    color: #f5f7ff;
+}
+
+body.dark-mode.create-event-page .image-preview-item {
+    background: #111b3b;
+    border-color: #425584;
+}
+
+body.dark-mode.create-event-page .image-preview-item span {
+    background: #111b3b;
+    color: #bdc7e7;
+}
+
+body.dark-mode.create-event-page .role-row {
+    background: #202f5d;
+    border-color: #425584;
+}
+
+body.dark-mode.create-event-page .role-add-button {
+    background: #293b75;
+    border-color: #425584;
+    color: #eff2ff;
+}
+
+body.dark-mode.create-event-page .role-add-button:hover,
+body.dark-mode.create-event-page .role-add-button:focus-visible {
+    background: #5168d9;
+    border-color: #5168d9;
+    color: #fff;
+}
+
+@media (max-width: 760px) {
+    .create-event-page .create-event-hero {
+        min-height: 18rem;
+        padding-left: 1.25rem;
+        padding-right: 1.25rem;
+    }
+
+    .create-event-page .create-event-card {
+        margin-top: 1.25rem;
+        width: calc(100% - 2rem);
+    }
+
+    .create-event-page .location-picker { grid-template-columns: 1fr; }
+}

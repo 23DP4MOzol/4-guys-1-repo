@@ -1,0 +1,726 @@
+/* Event detail page only: a wide, non-overlapping desktop composition. */
+body.event-detail-page {
+    background: var(--bg-gradient);
+}
+
+body.event-detail-page .event-page {
+    margin: 0;
+    max-width: none;
+    padding: 0 0 clamp(3.5rem, 8vw, 7rem);
+    width: 100%;
+}
+
+body.event-detail-page .event-hero {
+    background:
+        radial-gradient(circle at 92% 0%, rgba(255, 180, 103, 0.18), transparent 19rem),
+        #172a64;
+    color: #fff;
+    display: grid;
+    gap: 1.7rem;
+    min-height: clamp(22rem, 34vw, 31rem);
+    overflow: hidden;
+    padding: clamp(3.25rem, 7vw, 6.75rem) max(1.5rem, calc((100vw - 1320px) / 2));
+    position: relative;
+}
+
+body.event-detail-page .event-hero::after {
+    border: clamp(1.1rem, 2.2vw, 2rem) solid rgba(255, 180, 103, 0.2);
+    height: clamp(14rem, 23vw, 22rem);
+    right: clamp(-7rem, -5vw, -3rem);
+    top: clamp(-8rem, -6vw, -3rem);
+    width: clamp(14rem, 23vw, 22rem);
+}
+
+body.event-detail-page .event-hero-copy,
+body.event-detail-page .event-facts,
+body.event-detail-page .event-detail-grid {
+    max-width: 54rem;
+    position: relative;
+    text-align: center;
+    z-index: 1;
+}
+
+body.event-detail-page .event-hero-copy,
+body.event-detail-page .event-facts {
+    justify-self: center;
+    width: 100%;
+}
+
+body.event-detail-page .event-hero h1 {
+    color: #fff;
+    font-size: clamp(3rem, 6vw, 5.75rem);
+    letter-spacing: -0.065em;
+    line-height: 0.95;
+    margin: 0.65rem 0 1.1rem;
+}
+
+body.event-detail-page .event-hero-copy > p:last-child {
+    color: #d8e0ff;
+    font-size: clamp(1rem, 1.3vw, 1.14rem);
+    line-height: 1.7;
+    margin: 0;
+    max-width: 46rem;
+}
+
+body.event-detail-page .event-hero .eyebrow {
+    color: #bdc9ff;
+}
+
+body.event-detail-page .event-facts {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.65rem;
+    justify-content: center;
+}
+
+body.event-detail-page .event-facts span {
+    background: rgba(255, 255, 255, 0.12);
+    border: 1px solid rgba(255, 255, 255, 0.22);
+    border-radius: 999px;
+    color: #f4f6ff;
+    font-size: 0.86rem;
+    padding: 0.58rem 0.85rem;
+}
+
+/* site.js currently returns the description once inside this grid too.
+   Keep only the role summary in the hero; people are presented in the sidebar. */
+body.event-detail-page .event-detail-grid {
+    display: block;
+    margin: 0;
+}
+
+body.event-detail-page .event-detail-grid > .event-detail-block:not(.event-detail-roles) {
+    display: none;
+}
+
+body.event-detail-page .event-detail-roles {
+    background: transparent;
+    border: 0;
+    min-height: 0;
+    padding: 0;
+}
+
+body.event-detail-page .event-detail-roles .detail-label {
+    color: #bdc9ff;
+    display: block;
+    font-size: 0.74rem;
+    font-weight: 800;
+    letter-spacing: 0.09em;
+    margin-bottom: 0.6rem;
+    text-align: center;
+    text-transform: uppercase;
+}
+
+body.event-detail-page .role-capacity-list {
+    align-items: flex-start;
+    display: flex;
+    flex-wrap: nowrap;
+    gap: 0.55rem;
+    justify-content: flex-start;
+    margin: 0;
+    overflow-x: auto;
+    padding-bottom: 0.15rem;
+}
+
+body.event-detail-page .role-capacity-list span {
+    background: rgba(255, 255, 255, 0.12);
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    color: #f4f6ff;
+}
+
+body.event-detail-page .role-capacity-list:has(> :only-child) {
+    justify-content: center;
+    overflow-x: visible;
+}
+
+body.event-detail-page .event-page-layout {
+    align-items: start;
+    display: grid;
+    gap: clamp(1rem, 1.8vw, 1.65rem);
+    grid-template-columns: minmax(0, 1.15fr) minmax(20rem, 0.85fr);
+    margin: 0 auto;
+    max-width: 1180px;
+    padding: clamp(1.5rem, 3vw, 3.5rem) 1.25rem;
+    position: relative;
+    width: min(100%, 1180px);
+}
+
+/* Direct card grid, matching profile.html's structure. There are no wrapper
+   columns whose intrinsic size can shrink the chat into a sliver. */
+@media (min-width: 1201px) {
+    body.event-detail-page .event-page-layout > .event-join-card {
+        grid-column: 1;
+        grid-row: 1;
+    }
+
+    body.event-detail-page .event-page-layout > .event-people-card {
+        align-self: stretch;
+        grid-column: 2;
+        grid-row: 1;
+    }
+
+    body.event-detail-page .event-page-layout > .event-organizer-card {
+        grid-column: 1 / -1;
+        grid-row: 3;
+    }
+
+    body.event-detail-page .event-page-layout > .event-chat-card {
+        grid-column: 1 / -1;
+        grid-row: 4;
+    }
+
+    body.event-detail-page .event-page-layout > .event-map-card {
+        grid-column: 1;
+        grid-row: 2;
+    }
+
+    body.event-detail-page .event-page-layout:not(:has(.event-join-card)) > .event-map-card {
+        grid-row: 1;
+    }
+
+    body.event-detail-page .event-page-layout:not(:has(.event-join-card)) > .event-organizer-card {
+        grid-row: 2;
+    }
+
+    body.event-detail-page .event-page-layout:not(:has(.event-join-card)) > .event-chat-card {
+        grid-row: 3;
+    }
+}
+
+body.event-detail-page .event-page-layout .card {
+    border: 1px solid #dfe3ed;
+    border-radius: 16px;
+    box-shadow: 0 12px 30px rgba(23, 34, 75, 0.06);
+    margin: 0;
+    min-width: 0;
+    padding: clamp(1.2rem, 2vw, 1.75rem);
+    transform: none;
+}
+
+body.event-detail-page .event-page-layout .card:hover {
+    border-color: #cbd3ef;
+    box-shadow: 0 15px 34px rgba(23, 34, 75, 0.09);
+    transform: none;
+}
+
+body.event-detail-page .event-card-heading {
+    margin-bottom: 1.15rem;
+    text-align: center;
+}
+
+body.event-detail-page .event-card-heading .eyebrow {
+    color: #5b6bc1;
+    font-size: 0.71rem;
+    font-weight: 800;
+    letter-spacing: 0.1em;
+    margin-bottom: 0.35rem;
+    text-transform: uppercase;
+}
+
+body.event-detail-page .event-card-heading h2 {
+    color: #17224b;
+    font-size: clamp(1.25rem, 1.7vw, 1.55rem);
+    letter-spacing: -0.035em;
+    line-height: 1.15;
+}
+
+body.event-detail-page .event-chat-card {
+    display: flex;
+    flex-direction: column;
+    min-height: 32rem;
+}
+
+body.event-detail-page .chat-list {
+    background: #f8f9fe;
+    border: 1px solid #e4e8f4;
+    border-radius: 12px;
+    flex: 1 1 auto;
+    gap: 0.7rem;
+    margin: 0 0 1rem;
+    max-height: none;
+    min-height: 18rem;
+    padding: 0.85rem;
+}
+
+body.event-detail-page .chat-list p {
+    background: #fff;
+    border: 1px solid #e4e8f4;
+    border-radius: 10px;
+    color: var(--text-muted);
+    font-size: 0.91rem;
+    line-height: 1.5;
+    margin: 0;
+    padding: 0.75rem 0.85rem;
+}
+
+body.event-detail-page .chat-list p strong {
+    color: #273d9b;
+}
+
+body.event-detail-page .event-chat-form {
+    align-items: stretch;
+    display: grid;
+    gap: 0.65rem;
+    grid-template-columns: minmax(0, 1fr) auto;
+}
+
+body.event-detail-page .event-chat-form .btn-primary {
+    margin: 0;
+    min-width: 7.5rem;
+}
+
+body.event-detail-page .event-join-card .simple-form {
+    gap: 0.65rem;
+    text-align: center;
+}
+
+body.event-detail-page .event-join-card .btn-primary {
+    line-height: 1.25;
+    margin-top: 0.65rem;
+    text-align: center;
+}
+
+body.event-detail-page .event-join-card .form-note {
+    margin-top: 0.35rem;
+    text-align: center;
+}
+
+body.event-detail-page .event-people-grid {
+    align-content: start;
+    display: grid;
+    gap: 1rem;
+}
+
+body.event-detail-page .event-organizer-summary,
+body.event-detail-page .event-participants-summary {
+    min-width: 0;
+}
+
+body.event-detail-page .event-organizer-summary,
+body.event-detail-page .event-participants-summary {
+    padding-bottom: 0.85rem;
+}
+
+body.event-detail-page .event-participants-summary {
+    border-top: 1px solid #e4e8f4;
+    padding-top: 1rem;
+}
+
+body.event-detail-page .event-people-card h3 {
+    color: #34405f;
+    font-size: 0.83rem;
+    letter-spacing: -0.01em;
+    margin: 0 0 0.65rem;
+    text-align: center;
+}
+
+body.event-detail-page [data-event-organizer],
+body.event-detail-page [data-event-participants] {
+    display: grid;
+    gap: 0.55rem;
+}
+
+body.event-detail-page [data-event-organizer] > *,
+body.event-detail-page [data-event-participants] > * {
+    margin: 0;
+}
+
+body.event-detail-page .event-people-card .section-copy {
+    font-size: 0.85rem;
+    line-height: 1.5;
+    margin: 0;
+    text-align: center;
+}
+
+body.event-detail-page .event-map-card .section-copy {
+    line-height: 1.5;
+    margin: -0.35rem 0 0.9rem;
+    text-align: center;
+}
+
+body.event-detail-page .event-map-card .event-map {
+    background: #edf0fb;
+    border: 1px solid #dfe3ed;
+    border-radius: 12px;
+    height: clamp(17rem, 25vw, 23rem);
+    margin: 0;
+    min-height: 0;
+    overflow: hidden;
+    width: 100%;
+}
+
+body.event-detail-page .event-map-card .map-report-link {
+    display: block;
+    text-align: center;
+}
+
+body.event-detail-page .event-map-card .event-map .leaflet-container {
+    height: 100%;
+    width: 100%;
+}
+
+body.event-detail-page .map-unavailable {
+    color: var(--text-muted);
+    padding: 1rem;
+}
+
+body.event-detail-page .map-report-link {
+    color: var(--text-muted);
+    display: inline-block;
+    font-size: .8rem;
+    margin-top: .7rem;
+    text-decoration-thickness: 1px;
+    text-underline-offset: .16em;
+}
+
+body.event-detail-page .event-organizer-card {
+    grid-column: auto;
+    grid-row: auto;
+}
+
+body.event-detail-page .event-organizer-card[hidden] {
+    display: none;
+}
+
+body.event-detail-page .event-organizer-card .owned-event {
+    align-items: center;
+    border-top: 1px solid #e4e8f4;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.65rem;
+    justify-content: center;
+    padding: 0.85rem 0;
+    text-align: center;
+}
+
+body.event-detail-page .event-organizer-card .owned-event:first-child {
+    border-top: 0;
+    padding-top: 0;
+}
+
+body.event-detail-page .event-organizer-card .owned-event > div {
+    display: grid;
+    gap: 0.2rem;
+    min-width: 12rem;
+    text-align: center;
+}
+
+body.event-detail-page .event-organizer-card .owned-event span {
+    color: var(--text-muted);
+    font-size: 0.84rem;
+}
+
+body.event-detail-page .event-organizer-card .table-button {
+    margin: 0.15rem;
+}
+
+body.event-detail-page [data-organizer-applications] {
+    text-align: center;
+}
+
+body.event-detail-page .event-organizer-summary .event-person-row,
+body.event-detail-page .event-participants-summary .event-person-row {
+    align-items: center;
+    flex-direction: column;
+    text-align: center;
+}
+
+body.event-detail-page .event-person-row,
+body.event-detail-page .event-person-with-copy {
+    align-items: flex-start;
+    display: flex;
+    gap: 0.65rem;
+    justify-content: center;
+    min-width: 0;
+}
+
+body.event-detail-page .event-person-avatar {
+    align-items: center;
+    background: linear-gradient(135deg, #364db5, #7686de);
+    border-radius: 50%;
+    color: #fff;
+    display: inline-flex;
+    flex: 0 0 auto;
+    height: 2.35rem;
+    justify-content: center;
+    overflow: hidden;
+    position: relative;
+    margin-top: 0.1rem;
+    width: 2.35rem;
+}
+
+body.event-detail-page .event-person-avatar .person-avatar-image {
+    height: 100%;
+    inset: 0;
+    object-fit: cover;
+    position: absolute;
+    width: 100%;
+}
+
+body.event-detail-page .event-person-avatar .person-avatar-initials {
+    font-size: 0.76rem;
+    font-weight: 850;
+}
+
+body.event-detail-page .event-person-row > div,
+body.event-detail-page .event-person-with-copy > span {
+    display: grid;
+    gap: 0.1rem;
+    min-width: 0;
+}
+
+body.event-detail-page .event-organizer-summary .event-person-row > div,
+body.event-detail-page .event-participants-summary .event-person-row > div {
+    justify-items: center;
+}
+
+body.event-detail-page .event-person-row span,
+body.event-detail-page .event-person-with-copy small {
+    color: var(--text-muted);
+    font-size: 0.8rem;
+    overflow-wrap: anywhere;
+}
+
+body.event-detail-page .organizer-event-actions,
+body.event-detail-page .moderation-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    justify-content: center;
+}
+
+body.event-detail-page .organizer-event-actions {
+    border-bottom: 1px solid #e4e8f4;
+    margin-bottom: 1rem;
+    padding-bottom: 1rem;
+}
+
+body.event-detail-page .organizer-event-actions .btn-card {
+    align-items: center;
+    background: #edf0fb;
+    border: 1px solid #cbd4f3;
+    color: #273d9b;
+    display: inline-flex;
+    justify-content: center;
+    min-height: 2.35rem;
+    padding: 0.5rem 0.8rem;
+    text-decoration: none;
+}
+
+body.event-detail-page .organizer-event-actions .btn-card:hover {
+    background: #dfe5ff;
+    color: #17224b;
+}
+
+body.event-detail-page .moderation-actions {
+    border-top: 1px solid #e4e8f4;
+    margin-top: 0.85rem;
+    padding-top: 0.85rem;
+    width: 100%;
+}
+
+body.event-detail-page .moderation-button {
+    background: #edf0fb;
+    border: 1px solid #cbd4f3;
+    border-radius: 8px;
+    color: #2d43a1;
+    cursor: pointer;
+    font: inherit;
+    font-size: 0.76rem;
+    font-weight: 800;
+    padding: 0.5rem 0.65rem;
+}
+
+body.event-detail-page .moderation-button-danger {
+    background: #fff2f1;
+    border-color: #f2c5c0;
+    color: #b42318;
+}
+
+body.dark-mode.event-detail-page .event-detail-roles {
+    background: transparent;
+    border: 0;
+    box-shadow: none;
+}
+
+body.dark-mode.event-detail-page .event-detail-roles .detail-label {
+    color: #c6d0ff;
+}
+
+body.dark-mode.event-detail-page .role-capacity-list span {
+    background: rgba(41, 59, 117, 0.95);
+    border-color: #425584;
+    color: #eef1ff;
+}
+
+body.dark-mode.event-detail-page .event-chat-form input,
+body.dark-mode.event-detail-page .event-chat-form textarea,
+body.dark-mode.event-detail-page .event-join-card select,
+body.dark-mode.event-detail-page .event-join-card textarea {
+    background: #111b3b;
+    border-color: #425584;
+    color: #f5f7ff;
+}
+
+body.dark-mode.event-detail-page .event-chat-form input::placeholder,
+body.dark-mode.event-detail-page .event-chat-form textarea::placeholder,
+body.dark-mode.event-detail-page .event-join-card textarea::placeholder {
+    color: #8ea0d8;
+}
+
+body.dark-mode.event-detail-page .organizer-event-actions {
+    border-bottom-color: #31416f;
+}
+
+body.dark-mode.event-detail-page .moderation-actions {
+    border-top-color: #31416f;
+}
+
+body.dark-mode.event-detail-page .organizer-event-actions .btn-card {
+    background: #293b75;
+    border-color: #425584;
+    color: #eff2ff;
+}
+
+body.dark-mode.event-detail-page .moderation-button {
+    background: #293b75;
+    border-color: #425584;
+    color: #eff2ff;
+}
+
+body.dark-mode.event-detail-page .moderation-button-danger {
+    background: #3a2030;
+    border-color: #85454a;
+    color: #f0bfba;
+}
+
+body.dark-mode.event-detail-page .event-chat-card .chat-list,
+body.dark-mode.event-detail-page .event-people-card .section-copy,
+body.dark-mode.event-detail-page .event-organizer-card .owned-event span {
+    color: #c8d1ed;
+}
+
+body.event-detail-page .chat-list .chat-message {
+    align-items: flex-start;
+    display: flex;
+    gap: 0.65rem;
+}
+
+body.event-detail-page .chat-message-copy {
+    flex: 1;
+    min-width: 0;
+}
+
+body.event-detail-page .chat-message-copy p {
+    overflow-wrap: anywhere;
+}
+
+body.event-detail-page .chat-delete {
+    background: transparent;
+    border: 0;
+    color: #b42318;
+    cursor: pointer;
+    font: inherit;
+    font-size: 0.74rem;
+    font-weight: 800;
+    padding: 0.2rem;
+}
+
+body.dark-mode.event-detail-page .event-page-layout .card {
+    border-color: #31416f;
+}
+
+body.dark-mode.event-detail-page .event-card-heading h2,
+body.dark-mode.event-detail-page .event-people-card h3 {
+    color: #f5f7ff;
+}
+
+body.dark-mode.event-detail-page .chat-list,
+body.dark-mode.event-detail-page .chat-list p {
+    background: #111b3b;
+    border-color: #31416f;
+}
+
+body.dark-mode.event-detail-page .chat-list p strong {
+    color: #aebcf4;
+}
+
+body.dark-mode.event-detail-page .event-participants-summary,
+body.dark-mode.event-detail-page .event-organizer-card .owned-event {
+    border-color: #31416f;
+}
+
+body.dark-mode.event-detail-page .event-map-card .event-map {
+    border-color: #31416f;
+}
+
+@media (max-width: 1200px) {
+    body.event-detail-page .event-page-layout {
+        grid-template-columns: minmax(0, 1fr) !important;
+    }
+
+    body.event-detail-page .event-page-layout > .card {
+        grid-column: 1 !important;
+        grid-row: auto !important;
+    }
+
+    body.event-detail-page .event-people-grid {
+        gap: 0.85rem;
+    }
+}
+
+@media (max-width: 760px) {
+    body.event-detail-page .event-hero {
+        gap: 1.4rem;
+        min-height: 0;
+        padding: 3.25rem 1.25rem;
+    }
+
+    body.event-detail-page .event-hero h1 {
+        font-size: clamp(2.65rem, 12vw, 4.25rem);
+    }
+
+    body.event-detail-page .event-page-layout {
+        display: grid;
+        gap: 1rem;
+        grid-template-columns: 1fr;
+        padding: 1rem;
+    }
+
+    body.event-detail-page .event-join-card { order: 1; }
+    body.event-detail-page .event-people-card { order: 2; }
+    body.event-detail-page .event-map-card { order: 3; }
+    body.event-detail-page .event-organizer-card { order: 4; }
+    body.event-detail-page .event-chat-card { order: 5; }
+
+    body.event-detail-page .event-chat-card {
+        min-height: 27rem;
+    }
+
+    body.event-detail-page .chat-list {
+        min-height: 14rem;
+    }
+
+    body.event-detail-page .event-map-card .event-map {
+        height: 18rem;
+    }
+}
+
+@media (max-width: 470px) {
+    body.event-detail-page .event-page-layout .card {
+        border-radius: 13px;
+        padding: 1.1rem;
+    }
+
+    body.event-detail-page .event-facts span {
+        font-size: 0.8rem;
+    }
+
+    body.event-detail-page .event-chat-form {
+        grid-template-columns: 1fr;
+    }
+
+    body.event-detail-page .event-chat-form .btn-primary {
+        width: 100%;
+    }
+}

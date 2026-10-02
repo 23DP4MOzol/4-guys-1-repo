@@ -30,12 +30,14 @@ $$;
 create table if not exists public.profiles (
     id uuid primary key references auth.users(id) on delete cascade,
     full_name text not null,
+    avatar_path text,
     role public.user_role not null default 'user',
     is_banned boolean not null default false,
     created_at timestamptz not null default now()
 );
 
 alter table public.profiles add column if not exists is_banned boolean not null default false;
+alter table public.profiles add column if not exists avatar_path text;
 
 create table if not exists public.events (
     id uuid primary key default gen_random_uuid(),
@@ -44,6 +46,8 @@ create table if not exists public.events (
     category text not null,
     event_date date not null,
     location text not null,
+    latitude double precision,
+    longitude double precision,
     volunteer_roles text,
     volunteer_role_requirements jsonb not null default '[]'::jsonb,
     description text not null,
@@ -56,6 +60,26 @@ create table if not exists public.events (
 
 alter table public.events add column if not exists whitelist_volunteers boolean not null default false;
 alter table public.events add column if not exists volunteer_role_requirements jsonb not null default '[]'::jsonb;
+alter table public.events add column if not exists latitude double precision;
+alter table public.events add column if not exists longitude double precision;
+
+create or replace function public.enforce_future_event_date()
+returns trigger
+language plpgsql
+set search_path = public
+as $$
+begin
+    if new.event_date < current_date then
+        raise exception 'Events cannot be created or moved to a past date';
+    end if;
+    return new;
+end;
+$$;
+
+drop trigger if exists event_date_must_not_be_past on public.events;
+create trigger event_date_must_not_be_past
+before insert or update of event_date on public.events
+for each row execute procedure public.enforce_future_event_date();
 
 create table if not exists public.event_images (
     id uuid primary key default gen_random_uuid(),
@@ -84,6 +108,19 @@ create table if not exists public.event_messages (
     sender_id uuid not null references public.profiles(id) on delete cascade,
     message text not null check (char_length(message) between 1 and 1000),
     created_at timestamptz not null default now()
+);
+
+-- This table is deliberately separate from applications.  An application is
+-- the source of truth for membership; this only records an organizer's
+-- per-event chat moderation state and its audit trail.
+create table if not exists public.event_participant_moderation (
+    event_id uuid not null references public.events(id) on delete cascade,
+    participant_id uuid not null references public.profiles(id) on delete cascade,
+    is_muted boolean not null default false,
+    muted_at timestamptz,
+    muted_by uuid references public.profiles(id) on delete set null,
+    updated_at timestamptz not null default now(),
+    primary key (event_id, participant_id)
 );
 
 create table if not exists public.reports (
@@ -224,6 +261,45 @@ begin
 end;
 $$;
 
+-- Store only a storage object path, never a project-specific public URL.  The
+-- browser can derive the URL from the `profile-avatars` bucket, while this
+-- check prevents one user from assigning another user's avatar to their
+-- profile.
+create or replace function public.update_my_avatar_path(new_avatar_path text)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+    normalized_path text := nullif(btrim(new_avatar_path), '');
+begin
+    if auth.uid() is null then
+        raise exception 'You must be signed in to update an avatar';
+    end if;
+
+    if normalized_path is not null then
+        if char_length(normalized_path) > 512
+           or normalized_path !~* ('^' || auth.uid()::text || '/avatar([._-][a-z0-9_-]+)?\.(jpg|jpeg|png|webp)$') then
+            raise exception 'Avatar path must be your own JPG, PNG, or WEBP avatar file';
+        end if;
+
+        if not exists (
+            select 1
+            from storage.objects object_record
+            where object_record.bucket_id = 'profile-avatars'
+              and object_record.name = normalized_path
+        ) then
+            raise exception 'Upload the avatar before assigning it to your profile';
+        end if;
+    end if;
+
+    update public.profiles
+    set avatar_path = normalized_path
+    where id = auth.uid();
+end;
+$$;
+
 create or replace function public.export_my_data()
 returns jsonb
 language sql
@@ -249,9 +325,11 @@ end;
 $$;
 
 revoke execute on function public.update_my_profile(text) from public;
+revoke execute on function public.update_my_avatar_path(text) from public;
 revoke execute on function public.export_my_data() from public;
 revoke execute on function public.delete_my_account() from public;
 grant execute on function public.update_my_profile(text) to authenticated;
+grant execute on function public.update_my_avatar_path(text) to authenticated;
 grant execute on function public.export_my_data() to authenticated;
 grant execute on function public.delete_my_account() to authenticated;
 
@@ -290,6 +368,133 @@ begin
 end;
 $$;
 
+-- Organizers control the people admitted to their own event. A
+-- kick changes an approved application to rejected, so the existing chat RLS
+-- immediately removes access and the original application remains auditable.
+create or replace function public.organizer_set_participant_state(event_id uuid, participant_id uuid, action text)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+    target_event_id alias for $1;
+    target_participant_id alias for $2;
+    requested_action text := lower(btrim(action));
+    application_record public.event_applications%rowtype;
+    event_record public.events%rowtype;
+begin
+    if requested_action not in ('kick', 'mute', 'unmute') then
+        raise exception 'Action must be kick, mute, or unmute';
+    end if;
+
+    -- Lock in the same application-then-event order as application approval
+    -- to avoid a deadlock when an organizer reviews and moderates together.
+    select * into application_record
+    from public.event_applications application
+    where application.event_id = target_event_id
+      and application.volunteer_id = target_participant_id
+    for update;
+    if not found or application_record.status <> 'approved'::public.application_status then
+        raise exception 'Only approved participants can be moderated';
+    end if;
+
+    select * into event_record
+    from public.events event_record_source
+    where event_record_source.id = application_record.event_id
+    for update;
+    if not found then
+        raise exception 'Event not found';
+    end if;
+
+    if event_record.creator_id <> auth.uid() then
+        raise exception 'Only this event organizer can moderate participants';
+    end if;
+
+    if target_participant_id = event_record.creator_id then
+        raise exception 'The event organizer cannot be moderated as a participant';
+    end if;
+
+    if requested_action = 'kick' then
+        update public.event_applications
+        set status = 'rejected'::public.application_status
+        where id = application_record.id;
+    elsif requested_action = 'mute' then
+        insert into public.event_participant_moderation (
+            event_id, participant_id, is_muted, muted_at, muted_by, updated_at
+        ) values (
+            event_record.id, target_participant_id, true, now(), auth.uid(), now()
+        )
+        on conflict (event_id, participant_id) do update
+        set is_muted = true,
+            muted_at = now(),
+            muted_by = auth.uid(),
+            updated_at = now();
+    else
+        insert into public.event_participant_moderation (
+            event_id, participant_id, is_muted, muted_at, muted_by, updated_at
+        ) values (
+            event_record.id, target_participant_id, false, null, auth.uid(), now()
+        )
+        on conflict (event_id, participant_id) do update
+        set is_muted = false,
+            muted_at = null,
+            muted_by = auth.uid(),
+            updated_at = now();
+    end if;
+
+    insert into public.audit_logs (actor_id, action, entity_type, entity_id, details)
+    values (
+        auth.uid(),
+        'event_participant_' || requested_action,
+        'event_participant',
+        target_participant_id,
+        jsonb_build_object('event_id', event_record.id, 'participant_id', target_participant_id)
+    );
+end;
+$$;
+
+-- This is the one stable, RLS-safe source for the participant panel.  Avatar
+-- values are storage paths; use `storage.from('profile-avatars').getPublicUrl`
+-- in the browser and render the existing initials fallback when it is null.
+create or replace function public.event_participants(event_id uuid)
+returns table(
+    id uuid,
+    full_name text,
+    avatar_path text,
+    requested_role text,
+    status public.application_status,
+    is_muted boolean
+)
+language sql
+security definer
+set search_path = public
+stable
+as $$
+    select
+        application.volunteer_id,
+        profile.full_name,
+        profile.avatar_path,
+        application.requested_role,
+        application.status,
+        coalesce(moderation.is_muted, false)
+    from public.events event_record
+    join public.event_applications application
+        on application.event_id = event_record.id
+       and application.status = 'approved'::public.application_status
+    join public.profiles profile on profile.id = application.volunteer_id
+    left join public.event_participant_moderation moderation
+        on moderation.event_id = event_record.id
+       and moderation.participant_id = application.volunteer_id
+    where event_record.id = $1
+      and (
+          event_record.status in ('approved'::public.event_status, 'archived'::public.event_status)
+          or event_record.creator_id = auth.uid()
+          or public.is_admin()
+      )
+    order by application.created_at asc
+$$;
+
 create or replace function public.event_role_availability(target_event_id uuid)
 returns table(role_name text, capacity integer, filled integer)
 language sql
@@ -311,9 +516,28 @@ as $$
 $$;
 
 revoke execute on function public.set_event_application_status(uuid, public.application_status) from public;
+revoke execute on function public.organizer_set_participant_state(uuid, uuid, text) from public;
+revoke execute on function public.event_participants(uuid) from public;
 revoke execute on function public.event_role_availability(uuid) from public;
 grant execute on function public.set_event_application_status(uuid, public.application_status) to authenticated;
+grant execute on function public.organizer_set_participant_state(uuid, uuid, text) to authenticated;
+grant execute on function public.event_participants(uuid) to anon, authenticated;
 grant execute on function public.event_role_availability(uuid) to anon, authenticated;
+
+create or replace function public.community_stats()
+returns table(upcoming_events bigint, members bigint)
+language sql
+security definer
+set search_path = public
+stable
+as $$
+    select
+        (select count(*) from public.events where status = 'approved' and event_date >= current_date),
+        (select count(*) from public.profiles where not is_banned)
+$$;
+
+revoke execute on function public.community_stats() from public;
+grant execute on function public.community_stats() to anon, authenticated;
 
 drop policy if exists "Authenticated users can request events" on public.events;
 create policy "Authenticated users can request events"
@@ -401,6 +625,12 @@ with check (
     sender_id = auth.uid()
     and (exists (select 1 from public.events where id = event_id and creator_id = auth.uid())
     or exists (select 1 from public.event_applications where event_id = event_messages.event_id and volunteer_id = auth.uid() and status = 'approved'))
+    and not exists (
+        select 1 from public.event_participant_moderation moderation
+        where moderation.event_id = event_messages.event_id
+          and moderation.participant_id = auth.uid()
+          and moderation.is_muted
+    )
 );
 
 drop policy if exists "Organizers can remove messages" on public.event_messages;
@@ -436,6 +666,26 @@ with check (actor_id = auth.uid());
 insert into storage.buckets (id, name, public)
 values ('event-images', 'event-images', true)
 on conflict (id) do nothing;
+
+insert into storage.buckets (id, name, public)
+values ('profile-avatars', 'profile-avatars', true)
+on conflict (id) do nothing;
+
+drop policy if exists "Anyone can view profile avatars" on storage.objects;
+create policy "Anyone can view profile avatars"
+on storage.objects for select to anon, authenticated
+using (bucket_id = 'profile-avatars');
+
+drop policy if exists "Users upload their own profile avatar" on storage.objects;
+create policy "Users upload their own profile avatar"
+on storage.objects for insert to authenticated
+with check (bucket_id = 'profile-avatars' and (storage.foldername(name))[1] = auth.uid()::text);
+
+drop policy if exists "Users update their own profile avatar" on storage.objects;
+create policy "Users update their own profile avatar"
+on storage.objects for update to authenticated
+using (bucket_id = 'profile-avatars' and owner_id = auth.uid()::text)
+with check (bucket_id = 'profile-avatars' and (storage.foldername(name))[1] = auth.uid()::text);
 
 drop policy if exists "Anyone can view approved event images" on storage.objects;
 create policy "Anyone can view approved event images"

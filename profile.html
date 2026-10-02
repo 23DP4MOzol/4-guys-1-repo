@@ -5,8 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Tavs profils - Voluntio</title>
     <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="profile.css">
 </head>
-<body data-auth-required="true">
+<body class="profile-page" data-auth-required="true">
     <header>
         <nav class="navbar">
             <a class="logo" href="index.html" aria-label="Voluntio sākumlapa">Voluntio</a>
@@ -20,19 +21,54 @@
             <div class="auth-buttons"><a href="login.html" class="btn-login">Pieteikties</a><a href="register.html" class="btn-register">Reģistrēties</a></div>
         </nav>
     </header>
-    <main class="events-main profile-main">
-        <section class="events-header"><h1>Tavs profils</h1><p>Pārvaldi sava konta informāciju un personas datu pieprasījumus.</p></section>
-        <section class="card simple-form-card">
+    <main class="profile-main">
+        <section class="profile-hero" aria-labelledby="profile-page-title">
+            <div class="profile-hero-copy">
+                <p class="eyebrow">Tava Voluntio telpa</p>
+                <h1 id="profile-page-title">Tavs profils</h1>
+                <p>Pārvaldi savu informāciju, pasākumus un ieguldījumu kopienā vienuviet.</p>
+            </div>
+            <div class="profile-hero-mark" aria-hidden="true">V</div>
+        </section>
+        <div class="profile-content">
+        <section class="card simple-form-card profile-identity-card">
+            <div class="profile-card-heading">
+                <div>
+                    <p class="section-kicker">Konta informācija</p>
+                    <h2>Pamatinformācija</h2>
+                    <p class="section-copy">Šī informācija būs redzama citiem Voluntio kopienas dalībniekiem.</p>
+                </div>
+            </div>
             <form class="simple-form" data-profile-form>
-                <label for="full-name">Vārds, uzvārds</label>
-                <input id="full-name" name="fullName" type="text" minlength="2" maxlength="120" required>
-                <label for="profile-email">E-pasts</label>
-                <input id="profile-email" name="email" type="email" readonly>
+                <div class="avatar-editor">
+                    <div class="avatar-preview" aria-live="polite">
+                        <img alt="Tavs profila attēls" data-profile-avatar-preview hidden>
+                        <span class="avatar-initials" data-profile-avatar-fallback aria-hidden="true">V</span>
+                    </div>
+                    <div class="avatar-editor-copy">
+                        <p class="avatar-editor-title">Profila attēls</p>
+                        <p>Pievieno attēlu, lai citi dalībnieki tevi vieglāk atpazītu.</p>
+                        <label class="avatar-upload-button" for="profile-avatar">Augšupielādēt attēlu</label>
+                        <input class="visually-hidden" id="profile-avatar" name="avatar" type="file" accept="image/jpeg,image/png,image/webp" data-profile-avatar-input aria-describedby="profile-avatar-help">
+                        <span class="avatar-upload-help" id="profile-avatar-help">JPG, PNG vai WEBP</span>
+                    </div>
+                </div>
+                <div class="profile-field-grid">
+                    <div>
+                        <label for="full-name">Vārds, uzvārds</label>
+                        <input id="full-name" name="fullName" type="text" minlength="2" maxlength="120" required>
+                    </div>
+                    <div>
+                        <label for="profile-email">E-pasts</label>
+                        <input id="profile-email" name="email" type="email" readonly>
+                    </div>
+                </div>
                 <button class="btn-primary" type="submit">Saglabāt izmaiņas</button>
                 <p class="form-note" data-form-message></p>
             </form>
         </section>
         <section class="card simple-form-card profile-password-card">
+            <p class="section-kicker">Drošība</p>
             <h2>Parole</h2>
             <p class="section-copy">Nomaini paroli vai nosūti atiestatīšanas saiti uz savu e-pastu.</p>
             <form class="simple-form" data-password-form>
@@ -48,22 +84,29 @@
             <button class="btn-card password-reset-button" type="button" data-profile-reset>Nosūtīt atiestatīšanas e-pastu</button>
         </section>
         <section class="card profile-actions">
+            <p class="section-kicker">Tavi dati</p>
             <h2>Personas dati</h2>
             <p>Lejupielādē savus personas datus.</p>
             <div class="profile-action-row"><button class="btn-card" type="button" data-export-data>Lejupielādēt manus datus</button></div>
         </section>
         <section class="card profile-actions profile-danger-zone">
+            <p class="section-kicker">Konts</p>
             <h2>Neatgriezeniska darbība</h2>
             <p>Konta dzēšana neatgriezeniski noņems tavu kontu un ar to saistītos datus.</p>
-            <button class="danger-button" type="button" data-show-delete-account>Dzēst kontu</button>
-            <form class="simple-form delete-account-form" data-delete-account-form hidden>
+            <form class="simple-form delete-account-form" data-delete-account-form>
                 <label for="delete-account-password">Ievadi paroli, lai apstiprinātu</label>
                 <input id="delete-account-password" name="password" type="password" autocomplete="current-password" required>
                 <div class="profile-action-row"><button class="danger-button" type="submit">Neatgriezeniski dzēst kontu</button></div>
                 <p class="form-note" data-delete-account-message></p>
             </form>
         </section>
-        <section class="card profile-actions"><h2>Mani pasākumi</h2><p>Pasākumi, kurus esi izveidojis, arī tie, kas gaida apstiprinājumu.</p><div data-my-events><p>Notiek ielāde...</p></div></section>
+        <section class="card profile-actions profile-events-card">
+            <p class="section-kicker">Ieguldījums</p>
+            <h2>Mani pasākumi</h2>
+            <p>Pasākumi, kurus esi izveidojis, arī tie, kas gaida apstiprinājumu.</p>
+            <div data-my-events><p>Notiek ielāde...</p></div>
+        </section>
+        </div>
     </main>
     <footer><p>&copy; 2026 Voluntio. Visas tiesības aizsargātas.</p></footer>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>

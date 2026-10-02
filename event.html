@@ -1,4 +1,112 @@
 <!DOCTYPE html>
-<html lang="lv"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Pasākums - Voluntio</title><link rel="stylesheet" href="style.css"></head>
-<body><header><nav class="navbar"><a class="logo" href="index.html">Voluntio</a><ul class="nav-links"><li><a href="index.html">Sākumlapa</a></li><li><a href="pasakumi.html">Pasākumi</a></li><li><a href="create-event.html">Izveidot pasākumu</a></li><li><a href="admin.html">Admin panelis</a></li></ul><div class="auth-buttons"><a href="login.html" class="btn-login">Pieteikties</a><a href="register.html" class="btn-register">Reģistrēties</a></div></nav></header>
-<main class="event-page"><section class="event-hero" data-event-detail><h1>Pasākums</h1><p>Notiek ielāde...</p></section><div class="event-page-layout"><section class="card event-join-card" data-event-join><h2>Pieteikties</h2><form class="simple-form" data-detail-application><label for="detail-requested-role">Loma, kurā vēlies palīdzēt</label><select id="detail-requested-role" name="requestedRole" required></select><label for="detail-message">Ziņa organizatoram <span>(nav obligāti)</span></label><textarea id="detail-message" name="message" rows="4" placeholder="Pastāsti īsi par savu pieredzi vai jautājumu"></textarea><button class="btn-primary" type="submit">Pieteikties šim pasākumam</button><p class="form-note" data-form-message></p></form></section><section class="card event-organizer-card" data-organizer-panel hidden><p class="eyebrow">Organizatora pārvaldība</p><h2>Pieteikumi</h2><div data-organizer-applications></div></section><section class="card event-chat-card" data-event-chat><h2>Pasākuma saruna</h2><p class="section-copy" data-chat-notice hidden>Lai rakstītu sarunā, vispirms pievienojies pasākumam un sagaidi apstiprinājumu.</p><div class="chat-list" data-chat-list></div><form class="simple-form" data-chat-form><input name="message" maxlength="1000" placeholder="Raksti ziņu..."><button class="btn-primary" type="submit">Nosūtīt</button></form></section></div></main><footer><p>&copy; 2026 Voluntio. Visas tiesības aizsargātas.</p></footer><script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script><script src="supabase-client.js"></script><script src="site.js"></script></body></html>
+<html lang="lv">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="referrer" content="strict-origin-when-cross-origin">
+    <title>Pasākums - Voluntio</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="event-page.css">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
+</head>
+<body class="event-detail-page">
+    <header>
+        <nav class="navbar">
+            <a class="logo" href="index.html">Voluntio</a>
+            <ul class="nav-links">
+                <li><a href="index.html">Sākumlapa</a></li>
+                <li><a href="pasakumi.html">Pasākumi</a></li>
+                <li><a href="create-event.html">Izveidot pasākumu</a></li>
+                <li><a href="admin.html">Admin panelis</a></li>
+            </ul>
+            <div class="auth-buttons">
+                <a href="login.html" class="btn-login">Pieteikties</a>
+                <a href="register.html" class="btn-register">Reģistrēties</a>
+            </div>
+        </nav>
+    </header>
+
+    <main class="event-page">
+        <section class="event-hero" data-event-detail aria-live="polite">
+            <h1>Pasākums</h1>
+            <p>Notiek ielāde...</p>
+        </section>
+
+        <div class="event-page-layout">
+            <section class="card event-chat-card" data-event-chat aria-labelledby="event-chat-title">
+                    <div class="event-card-heading">
+                        <p class="eyebrow">Kopiena</p>
+                        <h2 id="event-chat-title">Pasākuma saruna</h2>
+                    </div>
+                    <p class="section-copy" data-chat-notice hidden>Lai rakstītu sarunā, vispirms pievienojies pasākumam un sagaidi apstiprinājumu.</p>
+                    <div class="chat-list" data-chat-list aria-live="polite"></div>
+                    <form class="simple-form event-chat-form" data-chat-form>
+                        <label class="visually-hidden" for="event-chat-message">Ziņa sarunā</label>
+                        <input id="event-chat-message" name="message" maxlength="1000" placeholder="Raksti ziņu...">
+                        <button class="btn-primary" type="submit">Nosūtīt</button>
+                    </form>
+            </section>
+
+            <section class="card event-organizer-card" data-organizer-panel hidden aria-labelledby="organizer-panel-title">
+                    <div class="event-card-heading">
+                        <p class="eyebrow">Organizatora pārvaldība</p>
+                        <h2 id="organizer-panel-title">Pieteikumi un dalībnieki</h2>
+                    </div>
+                    <div data-organizer-applications></div>
+            </section>
+
+            <section class="card event-join-card" data-event-join aria-labelledby="event-join-title">
+                    <div class="event-card-heading">
+                        <p class="eyebrow">Pievienojies</p>
+                        <h2 id="event-join-title">Pieteikties</h2>
+                    </div>
+                    <form class="simple-form" data-detail-application>
+                        <label for="detail-requested-role">Loma, kurā vēlies palīdzēt</label>
+                        <select id="detail-requested-role" name="requestedRole" required></select>
+                        <label for="detail-message">Ziņa organizatoram <span>(nav obligāti)</span></label>
+                        <textarea id="detail-message" name="message" rows="4" placeholder="Pastāsti īsi par savu pieredzi vai jautājumu"></textarea>
+                        <button class="btn-primary" type="submit">Pieteikties šim pasākumam</button>
+                        <p class="form-note" data-form-message></p>
+                    </form>
+            </section>
+
+            <section class="card event-people-card" data-event-people aria-labelledby="event-people-title">
+                    <div class="event-card-heading">
+                        <p class="eyebrow">Komanda</p>
+                        <h2 id="event-people-title">Cilvēki pasākumā</h2>
+                    </div>
+                    <div class="event-people-grid">
+                        <section class="event-organizer-summary" aria-labelledby="event-organizer-title">
+                            <h3 id="event-organizer-title">Organizators</h3>
+                            <div data-event-organizer>
+                                <p class="section-copy">Notiek ielāde...</p>
+                            </div>
+                        </section>
+                        <section class="event-participants-summary" aria-labelledby="event-participants-title">
+                            <h3 id="event-participants-title">Dalībnieki</h3>
+                            <div data-event-participants>
+                                <p class="section-copy">Notiek ielāde...</p>
+                            </div>
+                        </section>
+                    </div>
+            </section>
+
+            <section class="card event-map-card" aria-labelledby="event-map-title">
+                    <div class="event-card-heading">
+                        <p class="eyebrow">Vieta</p>
+                        <h2 id="event-map-title">Kur satiksimies?</h2>
+                    </div>
+                    <p class="section-copy" data-event-map-address></p>
+                    <div class="event-map" data-event-map aria-label="Pasākuma atrašanās vieta"></div>
+                    <a class="map-report-link" href="https://www.openstreetmap.org/fixthemap" target="_blank" rel="noopener noreferrer">Ziņot par kļūdu kartē</a>
+            </section>
+        </div>
+    </main>
+
+    <footer><p>&copy; 2026 Voluntio. Visas tiesības aizsargātas.</p></footer>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    <script src="supabase-client.js"></script>
+    <script src="site.js"></script>
+</body>
+</html>
