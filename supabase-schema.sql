@@ -371,6 +371,8 @@ $$;
 -- Organizers control the people admitted to their own event. A
 -- kick changes an approved application to rejected, so the existing chat RLS
 -- immediately removes access and the original application remains auditable.
+drop function if exists public.organizer_set_participant_state(uuid, uuid, text);
+
 create or replace function public.organizer_set_participant_state(event_id uuid, participant_id uuid, action text)
 returns void
 language plpgsql
@@ -457,6 +459,8 @@ $$;
 -- This is the one stable, RLS-safe source for the participant panel.  Avatar
 -- values are storage paths; use `storage.from('profile-avatars').getPublicUrl`
 -- in the browser and render the existing initials fallback when it is null.
+drop function if exists public.event_participants(uuid);
+
 create or replace function public.event_participants(event_id uuid)
 returns table(
     id uuid,
