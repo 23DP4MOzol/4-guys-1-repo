@@ -5,6 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Admin panelis - Voluntio</title>
     <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="events.css">
+    <link rel="stylesheet" href="admin.css">
 </head>
 <body data-auth-required="true" data-role-required="admin">
     <header>
@@ -78,11 +80,6 @@
             <div class="table-wrap"><table><thead><tr><th>Prioritāte</th><th>Iemesls</th><th>Pasākums</th><th>Laiks</th><th>Statuss</th><th>Darbība</th></tr></thead><tbody data-admin-reports></tbody></table></div>
         </section>
 
-        <section class="admin-section admin-table-section" id="audit-log">
-            <div class="section-heading"><div><h2>Audita žurnāls</h2><p>Privilegētās darbības un drošības notikumi.</p></div></div>
-            <div class="table-wrap"><table><thead><tr><th>Laiks</th><th>Darbība</th><th>Objekts</th><th>Sīkāka informācija</th></tr></thead><tbody data-admin-audit></tbody></table></div>
-        </section>
-
         <section class="admin-section admin-table-section" id="users">
             <div class="section-heading"><div><h2>Lietotāji</h2><p>Reģistrētie platformas dalībnieki.</p></div><div class="admin-table-tools"><input type="search" placeholder="Meklēt lietotājus" aria-label="Meklēt lietotājus" data-admin-filter data-filter-target="users"><span class="table-count" data-admin-count="users">0 kopā</span></div></div>
             <div class="table-wrap">
@@ -103,6 +100,13 @@
             </div>
         </section>
     </main>
+    <dialog class="audit-dialog" data-audit-dialog aria-labelledby="audit-title">
+        <div class="section-heading"><h2 id="audit-title">Audit Log</h2><button type="button" class="table-button" data-audit-close>Aizvērt</button></div>
+        <p data-audit-user></p><p>Saglabājam pēdējo 14 dienu darbības. Laiks norādīts Latvijas laika joslā.</p>
+        <p role="status" data-audit-status></p>
+        <div class="table-wrap"><table><thead><tr><th>Datums un laiks</th><th>Darbība</th><th>Objekts</th><th>Izmaiņas</th></tr></thead><tbody data-user-audit></tbody></table></div>
+        <div class="audit-actions"><button type="button" class="table-button" data-audit-more hidden>Rādīt vairāk</button><button type="button" class="table-button table-button-danger" data-audit-clear>Notīrīt šī lietotāja žurnālu</button></div>
+    </dialog>
 
     <footer>
         <p>&copy; 2026 Voluntio. Visas tiesības aizsargātas.</p>
@@ -110,5 +114,6 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="supabase-client.js"></script>
     <script src="site.js"></script>
+    <script src="admin-audit.js"></script>
 </body>
 </html>

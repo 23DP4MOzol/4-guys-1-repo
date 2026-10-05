@@ -724,3 +724,13 @@ body.dark-mode.event-detail-page .event-map-card .event-map {
         width: 100%;
     }
 }
+.event-image-gallery { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr)); gap: 1rem; margin-top: 1.5rem; }
+.event-image-gallery img { display: block; width: 100%; height: auto; aspect-ratio: 3 / 2; object-fit: contain; border-radius: .75rem; }
+.organizer-table { min-width: 760px; width: 100%; border-collapse: collapse; }
+.organizer-table th, .organizer-table td { padding: 1rem; vertical-align: top; text-align: left; }
+.organizer-table td { white-space: normal; }
+.organizer-table .application-message { max-width: 22rem; overflow-wrap: anywhere; white-space: pre-wrap; }
+.organizer-table .participant-actions { display: flex; flex-wrap: wrap; gap: .5rem; min-width: 12rem; }
+.organizer-table small { display: block; margin-top: .5rem; color: var(--text-muted); }
+body.event-detail-page .event-chat-form[hidden] { display: none; }
+.chat-message time { display: block; font-size: .75rem; color: var(--text-muted); margin: .3rem 0; }

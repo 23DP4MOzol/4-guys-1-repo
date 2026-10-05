@@ -40,9 +40,10 @@
                     </div>
                     <p class="section-copy" data-chat-notice hidden>Lai rakstītu sarunā, vispirms pievienojies pasākumam un sagaidi apstiprinājumu.</p>
                     <div class="chat-list" data-chat-list aria-live="polite"></div>
+                    <p class="form-note" data-chat-status role="status"></p>
                     <form class="simple-form event-chat-form" data-chat-form>
                         <label class="visually-hidden" for="event-chat-message">Ziņa sarunā</label>
-                        <input id="event-chat-message" name="message" maxlength="1000" placeholder="Raksti ziņu...">
+                        <input id="event-chat-message" name="message" maxlength="1000" placeholder="Raksti ziņu..." required>
                         <button class="btn-primary" type="submit">Nosūtīt</button>
                     </form>
             </section>
@@ -53,6 +54,7 @@
                         <h2 id="organizer-panel-title">Pieteikumi un dalībnieki</h2>
                     </div>
                     <div data-organizer-applications></div>
+                    <p class="form-note" data-organizer-status role="status"></p>
             </section>
 
             <section class="card event-join-card" data-event-join aria-labelledby="event-join-title">
@@ -107,6 +109,7 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
     <script src="supabase-client.js"></script>
+    <script src="event-chat.js"></script>
     <script src="site.js"></script>
 </body>
 </html>

@@ -47,6 +47,7 @@
 
                 <label for="date">Datums</label>
                 <input id="date" name="date" type="date" required>
+                <p class="field-help" data-date-hint>Šodienas datumu vari mainīt uz vēlāku datumu.</p>
 
                 <label for="location">Norises vieta</label>
                 <input id="location" name="location" type="search" autocomplete="street-address" placeholder="Sāc rakstīt adresi vai vietu Latvijā" required data-location-search>
@@ -76,7 +77,7 @@
 
                 <label for="event-images">Pasākuma attēli (līdz 5)</label>
                 <input id="event-images" name="event-images" type="file" accept="image/jpeg,image/png,image/webp" multiple data-image-input>
-                <p class="field-help">Attēli tiks automātiski apgriezti vienotā formātā priekšskatījumam.</p>
+                <p class="field-help">Līdz 5 JPG, PNG vai WebP attēliem (katrs līdz 10 MB). Nospied “Apgriezt”, lai izvēlētos attēla daļu. Izmaiņas saglabājas kopā ar pasākumu.</p>
                 <div class="image-preview-grid" data-image-preview></div>
 
                 <button class="btn-primary" type="submit">Izveidot pasākumu</button>
@@ -91,6 +92,7 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
     <script src="supabase-client.js"></script>
+    <script src="event-images.js"></script>
     <script src="site.js"></script>
 </body>
 </html>

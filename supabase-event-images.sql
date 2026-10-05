@@ -1,0 +1,111 @@
+-- Run once in the Supabase SQL Editor for an existing deployment.
+-- Also included in supabase-schema.sql for new deployments.
+begin;
+
+drop policy if exists "Approved event images are public" on public.event_images;
+create policy "Approved event images are public"
+on public.event_images for select to anon, authenticated
+using (exists (
+    select 1 from public.events
+    where id = event_id and (status in ('approved', 'archived') or creator_id = auth.uid())
+) or public.is_admin());
+
+drop policy if exists "Anyone can view approved event images" on storage.objects;
+create policy "Anyone can view approved event images"
+on storage.objects for select to anon, authenticated
+using (bucket_id = 'event-images' and (
+    owner_id = auth.uid()::text or exists (
+        select 1 from public.event_images image
+        join public.events event on event.id = image.event_id
+        where image.storage_path = name and (event.status in ('approved', 'archived') or event.creator_id = auth.uid())
+    ) or public.is_admin()
+));
+
+-- One transaction commits event fields, image order, additions and removals.
+-- On any validation/storage-reference error, the previous event stays intact.
+create or replace function public.save_event_with_images(
+    target_event_id uuid, event_data jsonb, image_paths text[]
+)
+returns uuid
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+declare
+    actor uuid := auth.uid();
+    existing_creator uuid;
+    roles jsonb := event_data->'volunteer_role_requirements';
+begin
+    if actor is null or not exists (
+        select 1 from public.profiles where id = actor and not is_banned
+    ) then
+        raise exception 'Sign in with an active account to save an event';
+    end if;
+    if target_event_id is null then raise exception 'Event ID is required'; end if;
+    if image_paths is null or cardinality(image_paths) > 5 or
+        exists (select 1 from unnest(image_paths) path where path is null) or
+        cardinality(image_paths) <> (select count(distinct path) from unnest(image_paths) path) then
+        raise exception 'Choose at most five different images';
+    end if;
+    if event_data->>'category' not in ('Talka', 'Labdarība', 'Skolas pasākums', 'Cits') or
+        nullif(trim(event_data->>'location'), '') is null or
+        nullif(trim(event_data->>'description'), '') is null or
+        (event_data->>'latitude')::double precision is null or
+        (event_data->>'longitude')::double precision is null or
+        not ((event_data->>'latitude')::double precision between -90 and 90) or
+        not ((event_data->>'longitude')::double precision between -180 and 180) then
+        raise exception 'Provide a category, location, description and valid map coordinates';
+    end if;
+    if roles is null or jsonb_typeof(roles) <> 'array' then
+        raise exception 'Volunteer roles must be an array';
+    end if;
+    if jsonb_array_length(roles) = 0 or exists (
+        select 1 from jsonb_array_elements(roles) role
+        where nullif(trim(role->>'name'), '') is null or
+            coalesce(role->>'capacity', '') !~ '^[1-9][0-9]{0,2}$'
+    ) then
+        raise exception 'Provide at least one role with a capacity from 1 to 999';
+    end if;
+
+    -- Serialize retries, including concurrent requests creating the same UUID.
+    perform pg_advisory_xact_lock(hashtextextended(target_event_id::text, 0));
+    select creator_id into existing_creator from public.events where id = target_event_id for update;
+    if found and existing_creator <> actor then
+        raise exception 'Only the event creator can edit this event';
+    end if;
+    if exists (
+        select 1 from unnest(image_paths) path
+        where split_part(path, '/', 1) <> actor::text or not exists (
+            select 1 from storage.objects object
+            where object.bucket_id = 'event-images' and object.name = path and object.owner_id = actor::text
+        )
+    ) then
+        raise exception 'Upload each image to your own storage before saving';
+    end if;
+
+    insert into public.events (id, creator_id, title, category, event_date, location,
+        latitude, longitude, volunteer_roles, volunteer_role_requirements, description, whitelist_volunteers, status)
+    values (target_event_id, actor, trim(event_data->>'title'), event_data->>'category',
+        (event_data->>'event_date')::date, trim(event_data->>'location'),
+        (event_data->>'latitude')::double precision, (event_data->>'longitude')::double precision,
+        event_data->>'volunteer_roles', roles, trim(event_data->>'description'),
+        coalesce((event_data->>'whitelist_volunteers')::boolean, false), 'pending')
+    on conflict (id) do update set
+        title = excluded.title, category = excluded.category, event_date = excluded.event_date,
+        location = excluded.location, latitude = excluded.latitude, longitude = excluded.longitude,
+        volunteer_roles = excluded.volunteer_roles, volunteer_role_requirements = excluded.volunteer_role_requirements,
+        description = excluded.description, whitelist_volunteers = excluded.whitelist_volunteers,
+        status = 'pending', reviewed_by = null, reviewed_at = null;
+
+    delete from public.event_images where event_id = target_event_id;
+    insert into public.event_images (event_id, storage_path, sort_order)
+    select target_event_id, path, (position - 1)::smallint
+    from unnest(image_paths) with ordinality as images(path, position);
+    return target_event_id;
+end;
+$$;
+
+revoke all on function public.save_event_with_images(uuid, jsonb, text[]) from public, anon;
+grant execute on function public.save_event_with_images(uuid, jsonb, text[]) to authenticated;
+
+commit;

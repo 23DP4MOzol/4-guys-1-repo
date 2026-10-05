@@ -51,7 +51,7 @@
 
 .events-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 2rem;
 }
 
@@ -74,6 +74,31 @@
     min-width: 0;
     justify-content: space-between;
     transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.event-card[hidden] {
+    display: none;
+}
+
+.event-card .event-image {
+    height: auto;
+    aspect-ratio: 3 / 2;
+    object-fit: cover;
+    flex: none;
+}
+
+.events-status { margin-bottom: 1rem; color: var(--text-muted); }
+.events-show-more { margin: 2rem auto 0; cursor: pointer; }
+.events-show-more[hidden] { display: none; }
+.local-test-label { color: var(--primary); font-size: .8rem; font-weight: 800; margin-bottom: .75rem; }
+
+@media (max-width: 950px) {
+    .events-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 620px) {
+    .events-grid { grid-template-columns: minmax(0, 1fr); }
+    .filter-container input, .filter-container select { max-width: 100%; }
 }
 
 .event-card:hover {

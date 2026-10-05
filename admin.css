@@ -1,0 +1,7 @@
+.audit-dialog { width: min(1100px, 94vw); max-height: 90vh; margin: auto; padding: 1.5rem; border: 1px solid var(--border-color); border-radius: 1rem; background: var(--card-bg); color: var(--text-main); }
+.audit-dialog::backdrop { background: rgba(0, 0, 0, .65); }
+.audit-dialog > p { margin-bottom: 1rem; }
+.audit-actions { display: flex; gap: 1rem; justify-content: space-between; margin-top: 1rem; flex-wrap: wrap; }
+.audit-dialog [hidden] { display: none; }
+.audit-dialog td { white-space: normal; overflow-wrap: anywhere; }
+.admin-table-section td:last-child .table-button { margin: .2rem; }
