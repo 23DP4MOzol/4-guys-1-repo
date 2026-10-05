@@ -589,8 +589,9 @@ function setupEventDetail() {
         if (images.length) detail.insertAdjacentHTML('beforeend', `<div class="event-image-gallery" data-image-gallery>${images.map((image, index) => {
             const source = supabaseClient.storage.from('event-images').getPublicUrl(image.storage_path).data.publicUrl;
             const alt = `${event.title} — attēls ${index + 1}`;
-            return `<button class="gallery-trigger" type="button" data-gallery-image data-gallery-src="${escapeHtml(source)}" data-gallery-alt="${escapeHtml(alt)}" aria-label="Atvērt ${escapeHtml(alt)}"><img src="${escapeHtml(source)}" alt="${escapeHtml(alt)}" width="900" height="600"></button>`;
-        }).join('')}</div>`);
+            return `<button class="gallery-trigger" type="button" data-gallery-image data-gallery-src="${escapeHtml(source)}" data-gallery-alt="${escapeHtml(alt)}" aria-label="Atvērt ${escapeHtml(alt)}"${index ? ' hidden' : ''}><img src="${escapeHtml(source)}" alt="${escapeHtml(alt)}" width="900" height="600"></button>`;
+        }).join('')}<button class="gallery-arrow gallery-arrow-left" type="button" data-gallery-previous aria-label="Iepriekšējais attēls">&#8592;</button><button class="gallery-arrow gallery-arrow-right" type="button" data-gallery-next aria-label="Nākamais attēls">&#8594;</button><div class="gallery-dots" aria-label="Izvēlies attēlu">${images.map((image, index) => `<button class="gallery-dot${index === 0 ? ' active' : ''}" type="button" data-gallery-index="${index}" aria-label="Rādīt attēlu ${index + 1}" aria-current="${index === 0 ? 'true' : 'false'}"></button>`).join('')}</div></div>`);
+        setupEventCarousel(detail.querySelector('[data-image-gallery]'));
         setupEventMap(event);
         currentUser = await getCurrentUser();
         const organizerElement = document.querySelector('[data-event-organizer]');
@@ -905,6 +906,25 @@ function localTestEvents() {
 
 function sortedEventImages(event) {
     return [...(event.event_images || [])].sort((a, b) => a.sort_order - b.sort_order);
+}
+
+function setupEventCarousel(gallery) {
+    if (!gallery) return;
+    const images = [...gallery.querySelectorAll('[data-gallery-image]')];
+    const dots = [...gallery.querySelectorAll('[data-gallery-index]')];
+    let currentIndex = 0;
+    const show = (index) => {
+        currentIndex = (index + images.length) % images.length;
+        images.forEach((image, imageIndex) => { image.hidden = imageIndex !== currentIndex; });
+        dots.forEach((dot, dotIndex) => {
+            const active = dotIndex === currentIndex;
+            dot.classList.toggle('active', active);
+            dot.setAttribute('aria-current', String(active));
+        });
+    };
+    gallery.querySelector('[data-gallery-previous]')?.addEventListener('click', () => show(currentIndex - 1));
+    gallery.querySelector('[data-gallery-next]')?.addEventListener('click', () => show(currentIndex + 1));
+    dots.forEach((dot) => dot.addEventListener('click', () => show(Number(dot.dataset.galleryIndex))));
 }
 
 function setupImageLightbox() {
