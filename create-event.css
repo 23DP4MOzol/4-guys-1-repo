@@ -3,6 +3,9 @@
 .image-crop-dialog { border: 0; border-radius: 1rem; padding: 1.5rem; margin: auto; width: min(94vw, 680px); max-height: 94vh; overflow: auto; color: #17224b; background: white; }
 .image-crop-dialog::backdrop { background: rgba(0, 0, 0, .65); }
 .image-crop-dialog canvas { display: block; width: 100%; height: auto; margin: 1rem 0; border-radius: .5rem; }
+.image-crop-dialog canvas { cursor: move; touch-action: none; }
+.image-crop-dialog canvas:active { cursor: grabbing; }
+.crop-compat-control { height: 1px; opacity: 0; position: absolute; width: 1px; }
 .image-crop-dialog label { display: grid; grid-template-columns: 9rem 1fr; align-items: center; margin: .8rem 0; }
 .image-crop-dialog input { width: 100%; }
 .crop-actions { display: flex; justify-content: flex-end; gap: 1rem; margin-top: 1rem; }
