@@ -368,8 +368,9 @@ footer {
 
 .image-preview-item img {
     aspect-ratio: 3 / 2;
+    background: #eef1f7;
     display: block;
-    object-fit: cover;
+    object-fit: contain;
     width: 100%;
 }
 

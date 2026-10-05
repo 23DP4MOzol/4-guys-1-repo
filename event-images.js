@@ -37,7 +37,7 @@ function createEventImageEditor(input, preview, onBusyChange) {
     };
     const decode = (source) => new Promise((resolve, reject) => {
         const image = new Image();
-        image.crossOrigin = 'anonymous';
+        if (!source.startsWith('blob:') && !source.startsWith('data:')) image.crossOrigin = 'anonymous';
         image.onload = () => resolve(image);
         image.onerror = () => reject(new Error('Attēlu neizdevās atvērt. Izvēlies derīgu JPG, PNG vai WebP failu.'));
         image.src = source;
@@ -104,19 +104,17 @@ function createEventImageEditor(input, preview, onBusyChange) {
         const added = [];
         try {
             for (const file of files) {
-                const image = { source: URL.createObjectURL(file), crop: { zoom: 1, x: 50, y: 50 } };
+                const source = URL.createObjectURL(file);
+                const image = { file, source, preview: source, crop: { zoom: 1, x: 50, y: 50 } };
                 added.push(image);
-                const decoded = await decode(image.source);
-                const target = document.createElement('canvas');
-                target.width = 900; target.height = 600;
-                drawCrop(decoded, target, image.crop);
-                image.dataUrl = target.toDataURL('image/jpeg', 0.86);
-                image.preview = image.dataUrl;
+                await decode(image.source);
+                images.push(image);
+                render();
             }
-            images.push(...added);
-            render();
             showFormMessage('Attēli ir gatavi. Vari tos apgriezt pirms pasākuma saglabāšanas.');
         } catch (error) {
+            images = images.filter((image) => !added.includes(image));
+            render();
             added.forEach((image) => URL.revokeObjectURL(image.source));
             showFormMessage(error.message, true);
         } finally { setBusy(false); }
@@ -144,7 +142,8 @@ async function saveEventWithImages(client, userId, eventId, payload, images, ori
         for (const image of images) {
             if (!image.dataUrl) { paths.push(image.storagePath); continue; }
             const path = `${userId}/${eventId}/${crypto.randomUUID()}.jpg`;
-            const { error } = await bucket.upload(path, dataUrlToBlob(image.dataUrl), { contentType: 'image/jpeg', upsert: false });
+            const uploadBody = image.dataUrl ? dataUrlToBlob(image.dataUrl) : image.file;
+            const { error } = await bucket.upload(path, uploadBody, { contentType: image.dataUrl ? 'image/jpeg' : image.file.type, upsert: false });
             if (error) throw error;
             uploaded.push(path);
             paths.push(path);

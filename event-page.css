@@ -729,10 +729,10 @@ body.dark-mode.event-detail-page .event-map-card .event-map {
 .gallery-trigger[hidden] { display: none; }
 .gallery-trigger:hover { box-shadow: 0 0 0 3px var(--primary); }
 .gallery-trigger:focus-visible { outline: 3px solid var(--primary); outline-offset: 3px; }
-.gallery-trigger img { aspect-ratio: 3 / 2; display: block; height: auto; object-fit: cover; width: 100%; }
-.gallery-arrow { align-items: center; background: rgba(255, 255, 255, .9); border: 0; border-radius: 50%; box-shadow: 0 4px 16px rgba(23, 34, 75, .2); color: var(--text-main); cursor: pointer; display: flex; font-size: 1.5rem; height: 3rem; justify-content: center; position: absolute; top: 50%; transform: translateY(-50%); width: 3rem; z-index: 1; }
-.gallery-arrow:hover, .gallery-arrow:focus-visible { background: var(--primary); color: #fff; }
-.gallery-arrow:focus-visible { outline: 3px solid var(--primary); outline-offset: 3px; }
+.gallery-trigger img { aspect-ratio: 3 / 2; background: #eef1f7; display: block; height: auto; object-fit: contain; width: 100%; }
+.gallery-arrow { align-items: center; background: rgba(15, 25, 55, .94); border: 2px solid rgba(255, 255, 255, .9); border-radius: 50%; box-shadow: 0 5px 18px rgba(8, 15, 35, .38); color: #fff; cursor: pointer; display: flex; font-size: 2.15rem; font-weight: 900; height: 3rem; justify-content: center; line-height: 1; padding: 0 0 .18rem; position: absolute; text-shadow: 0 2px 5px rgba(0, 0, 0, .8); top: 50%; transform: translateY(-50%); transition: background-color .2s ease, box-shadow .2s ease, transform .2s ease; width: 3rem; z-index: 1; }
+.gallery-arrow:hover, .gallery-arrow:focus-visible { background: var(--primary); box-shadow: 0 7px 22px rgba(23, 34, 75, .45); transform: translateY(-50%) scale(1.06); }
+.gallery-arrow:focus-visible { outline: 3px solid #fff; outline-offset: 3px; }
 .gallery-arrow-left { left: 1rem; }
 .gallery-arrow-right { right: 1rem; }
 .gallery-dots { display: flex; gap: .55rem; justify-content: center; margin-top: 1rem; }
@@ -751,7 +751,7 @@ body.dark-mode.event-detail-page .event-map-card .event-map {
 .image-lightbox-arrow-right { right: 1rem; }
 .image-lightbox-close:hover, .image-lightbox-arrow:hover { background: var(--primary); }
 @media (max-width: 600px) {
-    .gallery-arrow { height: 2.5rem; width: 2.5rem; }
+    .gallery-arrow { font-size: 1.85rem; height: 2.5rem; width: 2.5rem; }
     .gallery-arrow-left { left: .6rem; }
     .gallery-arrow-right { right: .6rem; }
     .image-lightbox { padding: 3.5rem 3.25rem 2rem; }
