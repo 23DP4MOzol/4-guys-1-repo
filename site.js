@@ -295,10 +295,16 @@ function setupEventForm() {
             }
             const latitude = Number(form.elements.latitude.value);
             const longitude = Number(form.elements.longitude.value);
+            const location = form.elements.location.value.trim();
+            const description = form.elements.description.value.trim();
             if (!form.elements.latitude.value.trim() || !form.elements.longitude.value.trim() ||
                 !Number.isFinite(latitude) || !Number.isFinite(longitude) || Math.abs(latitude) > 90 || Math.abs(longitude) > 180) {
-                showFormMessage('Izvēlies pasākuma atrašanās vietu kartē, lai turpinātu.', true);
+                showFormMessage('Izvēlies vietu no kartes vai meklēšanas rezultātiem, lai saglabātu pasākumu.', true);
                 document.querySelector('[data-location-map]')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                return;
+            }
+            if (!location || !description) {
+                showFormMessage('Aizpildi pasākuma vietu un aprakstu, lai turpinātu.', true);
                 return;
             }
             if (!roleRequirements.length || roleRequirements.some((role) => !role.name || !Number.isInteger(role.capacity) || role.capacity < 1)) {
@@ -312,12 +318,12 @@ function setupEventForm() {
                 title,
                 category: form.elements.category.value,
                 event_date: form.elements.date.value,
-                location: form.elements.location.value.trim(),
+                location,
                 latitude,
                 longitude,
                 volunteer_roles: form.elements.roles.value.trim(),
                 volunteer_role_requirements: roleRequirements,
-                description: form.elements.description.value.trim(),
+                description,
                 whitelist_volunteers: form.elements.whitelist.checked,
                 status: 'pending'
             };

@@ -766,6 +766,8 @@ declare
     actor uuid := auth.uid();
     existing_creator uuid;
     roles jsonb := event_data->'volunteer_role_requirements';
+    latitude_value double precision := nullif(trim(event_data->>'latitude'), '')::double precision;
+    longitude_value double precision := nullif(trim(event_data->>'longitude'), '')::double precision;
 begin
     if actor is null or not exists (
         select 1 from public.profiles where id = actor and not is_banned
@@ -778,14 +780,12 @@ begin
         cardinality(image_paths) <> (select count(distinct path) from unnest(image_paths) path) then
         raise exception 'Choose at most five different images';
     end if;
-    if event_data->>'category' not in ('Talka', 'LabdarÄ«ba', 'Skolas pasÄkums', 'Cits') or
+    if nullif(trim(event_data->>'category'), '') is null or
         nullif(trim(event_data->>'location'), '') is null or
         nullif(trim(event_data->>'description'), '') is null or
-        (event_data->>'latitude')::double precision is null or
-        (event_data->>'longitude')::double precision is null or
-        not ((event_data->>'latitude')::double precision between -90 and 90) or
-        not ((event_data->>'longitude')::double precision between -180 and 180) then
-        raise exception 'Provide a category, location, description and valid map coordinates';
+        latitude_value is null or longitude_value is null or
+        not (latitude_value between -90 and 90) or not (longitude_value between -180 and 180) then
+        raise exception 'Choose a location from the map or search results before saving';
     end if;
     if roles is null or jsonb_typeof(roles) <> 'array' then
         raise exception 'Volunteer roles must be an array';
@@ -818,7 +818,7 @@ begin
         latitude, longitude, volunteer_roles, volunteer_role_requirements, description, whitelist_volunteers, status)
     values (target_event_id, actor, trim(event_data->>'title'), event_data->>'category',
         (event_data->>'event_date')::date, trim(event_data->>'location'),
-        (event_data->>'latitude')::double precision, (event_data->>'longitude')::double precision,
+        latitude_value, longitude_value,
         event_data->>'volunteer_roles', roles, trim(event_data->>'description'),
         coalesce((event_data->>'whitelist_volunteers')::boolean, false), 'pending')
     on conflict (id) do update set
@@ -1190,6 +1190,8 @@ declare
     actor uuid := auth.uid();
     existing_creator uuid;
     roles jsonb := event_data->'volunteer_role_requirements';
+    latitude_value double precision := nullif(trim(event_data->>'latitude'), '')::double precision;
+    longitude_value double precision := nullif(trim(event_data->>'longitude'), '')::double precision;
 begin
     if actor is null or not exists (
         select 1 from public.profiles where id = actor and not is_banned
@@ -1202,14 +1204,12 @@ begin
         cardinality(image_paths) <> (select count(distinct path) from unnest(image_paths) path) then
         raise exception 'Choose at most five different images';
     end if;
-    if event_data->>'category' not in ('Talka', 'LabdarÄ«ba', 'Skolas pasÄkums', 'Cits') or
+    if nullif(trim(event_data->>'category'), '') is null or
         nullif(trim(event_data->>'location'), '') is null or
         nullif(trim(event_data->>'description'), '') is null or
-        (event_data->>'latitude')::double precision is null or
-        (event_data->>'longitude')::double precision is null or
-        not ((event_data->>'latitude')::double precision between -90 and 90) or
-        not ((event_data->>'longitude')::double precision between -180 and 180) then
-        raise exception 'Provide a category, location, description and valid map coordinates';
+        latitude_value is null or longitude_value is null or
+        not (latitude_value between -90 and 90) or not (longitude_value between -180 and 180) then
+        raise exception 'Choose a location from the map or search results before saving';
     end if;
     if roles is null or jsonb_typeof(roles) <> 'array' then
         raise exception 'Volunteer roles must be an array';
@@ -1242,7 +1242,7 @@ begin
         latitude, longitude, volunteer_roles, volunteer_role_requirements, description, whitelist_volunteers, status)
     values (target_event_id, actor, trim(event_data->>'title'), event_data->>'category',
         (event_data->>'event_date')::date, trim(event_data->>'location'),
-        (event_data->>'latitude')::double precision, (event_data->>'longitude')::double precision,
+        latitude_value, longitude_value,
         event_data->>'volunteer_roles', roles, trim(event_data->>'description'),
         coalesce((event_data->>'whitelist_volunteers')::boolean, false), 'pending')
     on conflict (id) do update set
