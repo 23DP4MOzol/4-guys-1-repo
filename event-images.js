@@ -156,7 +156,7 @@ async function saveEventWithImages(client, userId, eventId, payload, images, ori
         if (error) {
             // A database error guarantees rollback. A lost network response does not.
             if (error.code && !String(error.code).startsWith('08')) commitRequested = false;
-            if (error.code === 'PGRST202') throw new Error('Datubāzei nepieciešams atjauninājums: izpildi supabase-event-images.sql Supabase SQL redaktorā.');
+            if (error.code === 'PGRST202') throw new Error('Datubāzei nepieciešams atjauninājums: izpildi supabase-all.sql Supabase SQL redaktorā.');
             throw error;
         }
         if (data !== eventId) throw new Error('Neizdevās apstiprināt saglabāšanu. Mēģini vēlreiz.');

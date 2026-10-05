@@ -20,13 +20,15 @@ Workflow checks also cover duplicate applications (including simultaneous attemp
 
 ## Database deployment
 
-For an existing Supabase project, run these in its SQL Editor, in order:
+For any Supabase project, paste `supabase-all.sql` into its SQL Editor and run the whole file. It includes the schema, event image migration, workflow migration and optional Cron setup in dependency order.
+
+The component files remain in the repository for the local test harness and for reference. If you run migrations separately, use this order:
 
 1. `supabase-event-images.sql` (if not already applied).
 2. `supabase-event-workflows.sql` (chat permissions, moderation fix, activity logging, date validation and cleanup).
 3. `supabase-maintenance.sql` (enable Cron and install automatic cleanup).
 
-New installations can run `supabase-schema.sql` followed by `supabase-maintenance.sql`.
+New installations should use `supabase-all.sql`.
 
 The maintenance job runs hourly. It deletes audit entries older than 14 days and messages belonging to expired or archived events. Archiving an event also deletes its chat immediately; hard deletion cascades. Chat access ends as soon as the event date is past in Europe/Riga. The migration cleans existing expired data on application. This is a rolling two-week history, not a wipe of recent activity every other week.
 
