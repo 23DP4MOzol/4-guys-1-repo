@@ -329,7 +329,7 @@ function setupEventForm() {
             };
             showFormMessage('Saglabā pasākumu un attēlus...');
             const savedId = await saveEventWithImages(supabaseClient, currentUser.id, eventId, eventPayload, imageEditor.getImages(), originalPaths);
-            showFormMessage('Pasākums un attēli saglabāti un nosūtīti apstiprināšanai.');
+            showFormMessage(editId ? 'Pasākums un attēli atjaunināti.' : 'Pasākums un attēli saglabāti un nosūtīti apstiprināšanai.');
             window.location.href = `event.html?id=${encodeURIComponent(savedId)}`;
         } catch (error) {
             showFormMessage(`Neizdevās saglabāt pasākumu: ${error.message}`, true);

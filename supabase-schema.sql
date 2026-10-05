@@ -820,7 +820,10 @@ begin
         location = excluded.location, latitude = excluded.latitude, longitude = excluded.longitude,
         volunteer_roles = excluded.volunteer_roles, volunteer_role_requirements = excluded.volunteer_role_requirements,
         description = excluded.description, whitelist_volunteers = excluded.whitelist_volunteers,
-        status = 'pending', reviewed_by = null, reviewed_at = null;
+        status = case when public.events.status = 'approved'::public.event_status
+            then 'approved'::public.event_status else 'pending'::public.event_status end,
+        reviewed_by = case when public.events.status = 'approved'::public.event_status then public.events.reviewed_by else null end,
+        reviewed_at = case when public.events.status = 'approved'::public.event_status then public.events.reviewed_at else null end;
 
     delete from public.event_images where event_id = target_event_id;
     insert into public.event_images (event_id, storage_path, sort_order)
