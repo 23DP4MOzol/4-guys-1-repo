@@ -81,10 +81,14 @@
 }
 
 .event-card .event-image {
+    background: var(--border-color);
+    border-radius: 10px;
     height: auto;
     aspect-ratio: 3 / 2;
     object-fit: cover;
     flex: none;
+    object-position: center;
+    width: 100%;
 }
 
 .events-status { margin-bottom: 1rem; color: var(--text-muted); }

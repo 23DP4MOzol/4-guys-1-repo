@@ -586,7 +586,11 @@ function setupEventDetail() {
         detail.innerHTML = `<div class="event-hero-copy"><p class="eyebrow">${escapeHtml(event.category)}</p><h1>${escapeHtml(event.title)}</h1><p>${escapeHtml(event.description)}</p></div><div class="event-facts"><span>📅 ${escapeHtml(event.event_date)}</span><span>📍 ${escapeHtml(event.location)}</span><span>👥 ${roles.reduce((total, role) => total + role.filled, 0)} / ${roles.reduce((total, role) => total + role.capacity, 0)} brīvprātīgie</span></div><div class="event-detail-grid"><div class="event-detail-block event-detail-roles"><span class="detail-label">Nepieciešamās lomas</span><div class="role-capacity-list">${roles.map((role) => `<span>${escapeHtml(role.name)} <strong>(${role.filled}/${role.capacity})</strong></span>`).join('') || '<span>Lomas nav norādītas.</span>'}</div></div></div>`;
         detail.dataset.creatorId = event.creator_id;
         const images = sortedEventImages(event);
-        if (images.length) detail.insertAdjacentHTML('beforeend', `<div class="event-image-gallery">${images.map((image, index) => `<img src="${escapeHtml(supabaseClient.storage.from('event-images').getPublicUrl(image.storage_path).data.publicUrl)}" alt="${escapeHtml(event.title)} — attēls ${index + 1}" width="900" height="600">`).join('')}</div>`);
+        if (images.length) detail.insertAdjacentHTML('beforeend', `<div class="event-image-gallery" data-image-gallery>${images.map((image, index) => {
+            const source = supabaseClient.storage.from('event-images').getPublicUrl(image.storage_path).data.publicUrl;
+            const alt = `${event.title} — attēls ${index + 1}`;
+            return `<button class="gallery-trigger" type="button" data-gallery-image data-gallery-src="${escapeHtml(source)}" data-gallery-alt="${escapeHtml(alt)}" aria-label="Atvērt ${escapeHtml(alt)}"><img src="${escapeHtml(source)}" alt="${escapeHtml(alt)}" width="900" height="600"></button>`;
+        }).join('')}</div>`);
         setupEventMap(event);
         currentUser = await getCurrentUser();
         const organizerElement = document.querySelector('[data-event-organizer]');
@@ -901,6 +905,54 @@ function localTestEvents() {
 
 function sortedEventImages(event) {
     return [...(event.event_images || [])].sort((a, b) => a.sort_order - b.sort_order);
+}
+
+function setupImageLightbox() {
+    if (document.querySelector('[data-image-lightbox]')) return;
+    const dialog = document.createElement('dialog');
+    dialog.className = 'image-lightbox';
+    dialog.dataset.imageLightbox = 'true';
+    dialog.setAttribute('aria-label', 'Pasākuma attēlu galerija');
+    dialog.innerHTML = `<button class="image-lightbox-close" type="button" data-lightbox-close aria-label="Aizvērt attēlu galeriju">&times;</button>
+        <button class="image-lightbox-arrow image-lightbox-arrow-left" type="button" data-lightbox-previous aria-label="Iepriekšējais attēls">&#8592;</button>
+        <figure><img data-lightbox-image alt=""><figcaption data-lightbox-caption></figcaption></figure>
+        <button class="image-lightbox-arrow image-lightbox-arrow-right" type="button" data-lightbox-next aria-label="Nākamais attēls">&#8594;</button>`;
+    document.body.append(dialog);
+    const image = dialog.querySelector('[data-lightbox-image]');
+    const caption = dialog.querySelector('[data-lightbox-caption]');
+    let items = [];
+    let currentIndex = 0;
+    const render = () => {
+        const item = items[currentIndex];
+        if (!item) return;
+        image.src = item.dataset.gallerySrc;
+        image.alt = item.dataset.galleryAlt;
+        caption.textContent = `${item.dataset.galleryAlt} · ${currentIndex + 1}/${items.length}`;
+        dialog.querySelector('[data-lightbox-previous]').hidden = items.length < 2;
+        dialog.querySelector('[data-lightbox-next]').hidden = items.length < 2;
+    };
+    const move = (step) => {
+        if (items.length < 2) return;
+        currentIndex = (currentIndex + step + items.length) % items.length;
+        render();
+    };
+    document.addEventListener('click', (event) => {
+        const trigger = event.target.closest('[data-gallery-image]');
+        if (!trigger) return;
+        const gallery = trigger.closest('[data-image-gallery]');
+        items = [...gallery.querySelectorAll('[data-gallery-image]')];
+        currentIndex = items.indexOf(trigger);
+        render();
+        dialog.showModal();
+    });
+    dialog.querySelector('[data-lightbox-close]').addEventListener('click', () => dialog.close());
+    dialog.querySelector('[data-lightbox-previous]').addEventListener('click', () => move(-1));
+    dialog.querySelector('[data-lightbox-next]').addEventListener('click', () => move(1));
+    dialog.addEventListener('click', (event) => { if (event.target === dialog) dialog.close(); });
+    dialog.addEventListener('keydown', (event) => {
+        if (event.key === 'ArrowLeft') move(-1);
+        if (event.key === 'ArrowRight') move(1);
+    });
 }
 
 async function renderCustomEvents() {
@@ -1488,6 +1540,7 @@ async function translateWithApi(text, sourceLanguage, targetLanguage) {
 
 document.addEventListener('DOMContentLoaded', async () => {
     removeTranslationArtifacts();
+    setupImageLightbox();
     // Initialize local cards before any remote Supabase request.
     setupEventFilters();
     renderCustomEvents();
