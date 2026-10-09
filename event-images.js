@@ -181,7 +181,9 @@ function createEventImageEditor(input, preview, onBusyChange) {
         load(records) {
             images = [...records].sort((a, b) => a.sort_order - b.sort_order).map((record) => {
                 const source = window.voluntioSupabase.storage.from('event-images').getPublicUrl(record.storage_path).data.publicUrl;
-                return { storagePath: record.storage_path, source, preview: source };
+                const originalStoragePath = record.original_storage_path || record.storage_path;
+                const originalSource = window.voluntioSupabase.storage.from('event-images').getPublicUrl(originalStoragePath).data.publicUrl;
+                return { storagePath: record.storage_path, originalStoragePath, source: originalSource, preview: source };
             });
             render();
         }
@@ -192,20 +194,35 @@ async function saveEventWithImages(client, userId, eventId, payload, images, ori
     const bucket = client.storage.from('event-images');
     const uploaded = [];
     const paths = [];
+    const originalImagePaths = [];
     let commitRequested = false;
     try {
         for (const image of images) {
-            if (!image.dataUrl) { paths.push(image.storagePath); continue; }
-            const path = `${userId}/${eventId}/${crypto.randomUUID()}.jpg`;
-            const uploadBody = image.dataUrl ? dataUrlToBlob(image.dataUrl) : image.file;
-            const { error } = await bucket.upload(path, uploadBody, { contentType: image.dataUrl ? 'image/jpeg' : image.file.type, upsert: false });
+            if (image.storagePath && !image.dataUrl) {
+                paths.push(image.storagePath);
+                originalImagePaths.push(image.originalStoragePath || image.storagePath);
+                continue;
+            }
+            const originalPath = image.originalStoragePath || `${userId}/${eventId}/${crypto.randomUUID()}-original`;
+            if (!image.originalStoragePath) {
+                const { error } = await bucket.upload(originalPath, image.file, { contentType: image.file.type, upsert: false });
+                if (error) throw error;
+                uploaded.push(originalPath);
+            }
+            originalImagePaths.push(originalPath);
+            if (!image.dataUrl) {
+                paths.push(originalPath);
+                continue;
+            }
+            const displayPath = `${userId}/${eventId}/${crypto.randomUUID()}.jpg`;
+            const { error } = await bucket.upload(displayPath, dataUrlToBlob(image.dataUrl), { contentType: 'image/jpeg', upsert: false });
             if (error) throw error;
-            uploaded.push(path);
-            paths.push(path);
+            uploaded.push(displayPath);
+            paths.push(displayPath);
         }
         commitRequested = true;
         const { data, error } = await client.rpc('save_event_with_images', {
-            target_event_id: eventId, event_data: payload, image_paths: paths
+            target_event_id: eventId, event_data: payload, image_paths: paths, original_image_paths: originalImagePaths
         });
         if (error) {
             // A database error guarantees rollback. A lost network response does not.
@@ -214,7 +231,7 @@ async function saveEventWithImages(client, userId, eventId, payload, images, ori
             throw error;
         }
         if (data !== eventId) throw new Error('Neizdevās apstiprināt saglabāšanu. Mēģini vēlreiz.');
-        const obsolete = originalPaths.filter((path) => !paths.includes(path));
+        const obsolete = originalPaths.filter((path) => !paths.includes(path) && !originalImagePaths.includes(path));
         // The database is already committed; a storage cleanup failure must not undo it.
         if (obsolete.length) {
             try { await bucket.remove(obsolete); } catch (error) { console.warn('Unused image cleanup failed', error); }

@@ -14,7 +14,7 @@ function setupEventChat(event, user) {
         pending: 'Tu jau esi pieteicies. Čats būs pieejams pēc organizatora apstiprinājuma.',
         not_joined: 'Pievienojies pasākumam un sagaidi apstiprinājumu, lai izmantotu čatu.',
         rejected: 'Dalība nav apstiprināta vai ir pārtraukta. Čats nav pieejams.',
-        muted: 'Nevar rakstīt pasākuma čatā — organizators ir apklusinājis tavu kontu. Ziņas joprojām vari lasīt.',
+        muted: 'Nevar rakstīt pasākuma čatā - organizators ir apklusinājis tavu kontu. Ziņas joprojām vari lasīt.',
         ended: 'Pasākums ir beidzies vai atcelts. Tā čats ir slēgts un ziņas tiek dzēstas.'
     };
     form.hidden = true;

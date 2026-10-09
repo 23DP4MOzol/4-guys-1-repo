@@ -223,7 +223,7 @@ function setupEventForm() {
         capacity: Number(row.querySelector('[name="role-count"]').value)
     }));
     if (editId) {
-        supabaseClient.from('events').select('title, category, event_date, location, latitude, longitude, volunteer_roles, volunteer_role_requirements, description, whitelist_volunteers, event_images(storage_path, sort_order)').eq('id', editId).single().then(({ data, error }) => {
+        supabaseClient.from('events').select('title, category, event_date, location, latitude, longitude, volunteer_roles, volunteer_role_requirements, description, whitelist_volunteers, event_images(storage_path, original_storage_path, sort_order)').eq('id', editId).single().then(({ data, error }) => {
             if (error || !data) throw error || new Error('Pasākums nav atrasts.');
             form.elements.title.value = data.title;
             form.elements.category.value = data.category;
@@ -243,7 +243,7 @@ function setupEventForm() {
             const button = form.querySelector('button[type="submit"]');
             if (button) button.textContent = 'Saglabāt izmaiņas';
             imageEditor.load(data.event_images || []);
-            originalPaths = (data.event_images || []).map((image) => image.storage_path);
+            originalPaths = (data.event_images || []).flatMap((image) => [image.storage_path, image.original_storage_path || image.storage_path]);
             form.dispatchEvent(new Event('voluntio:event-loaded'));
             loading = false;
             imageEditor.setLocked(false);
@@ -577,7 +577,7 @@ function setupEventDetail() {
     const joinForm = document.querySelector('[data-detail-application]');
     let currentUser;
     const load = async () => {
-        const result = await supabaseClient.from('events').select('id, title, category, event_date, location, latitude, longitude, description, volunteer_roles, volunteer_role_requirements, creator_id, status, event_images(storage_path, sort_order), profiles!events_creator_id_fkey(full_name, avatar_path)').eq('id', eventId).single();
+        const result = await supabaseClient.from('events').select('id, title, category, event_date, location, latitude, longitude, description, volunteer_roles, volunteer_role_requirements, creator_id, status, event_images(storage_path, original_storage_path, sort_order), profiles!events_creator_id_fkey(full_name, avatar_path)').eq('id', eventId).single();
         if (result.error) { detail.innerHTML = `<h1>Pasākums nav atrasts</h1><p>${escapeHtml(result.error.message)}</p>`; return; }
         const event = result.data;
         if (event.status === 'archived') {
@@ -594,8 +594,9 @@ function setupEventDetail() {
         const images = sortedEventImages(event);
         if (images.length) detail.insertAdjacentHTML('beforeend', `<div class="event-image-gallery" data-image-gallery>${images.map((image, index) => {
             const source = supabaseClient.storage.from('event-images').getPublicUrl(image.storage_path).data.publicUrl;
+            const originalSource = supabaseClient.storage.from('event-images').getPublicUrl(image.original_storage_path || image.storage_path).data.publicUrl;
             const alt = `${event.title} — attēls ${index + 1}`;
-            return `<button class="gallery-trigger" type="button" data-gallery-image data-gallery-src="${escapeHtml(source)}" data-gallery-alt="${escapeHtml(alt)}" aria-label="Atvērt ${escapeHtml(alt)}"${index ? ' hidden' : ''}><img src="${escapeHtml(source)}" alt="${escapeHtml(alt)}" width="900" height="600"></button>`;
+            return `<button class="gallery-trigger" type="button" data-gallery-image data-gallery-src="${escapeHtml(originalSource)}" data-gallery-alt="${escapeHtml(alt)}" aria-label="Atvērt ${escapeHtml(alt)}"${index ? ' hidden' : ''}><img src="${escapeHtml(source)}" alt="${escapeHtml(alt)}" width="900" height="600"></button>`;
         }).join('')}<button class="gallery-arrow gallery-arrow-left" type="button" data-gallery-previous aria-label="Iepriekšējais attēls">&#8592;</button><button class="gallery-arrow gallery-arrow-right" type="button" data-gallery-next aria-label="Nākamais attēls">&#8594;</button><div class="gallery-dots" aria-label="Izvēlies attēlu">${images.map((image, index) => `<button class="gallery-dot${index === 0 ? ' active' : ''}" type="button" data-gallery-index="${index}" aria-label="Rādīt attēlu ${index + 1}" aria-current="${index === 0 ? 'true' : 'false'}"></button>`).join('')}</div></div>`);
         setupEventCarousel(detail.querySelector('[data-image-gallery]'));
         setupEventMap(event);
@@ -638,14 +639,14 @@ function setupEventDetail() {
                     button.disabled = true;
                     const { error } = await supabaseClient.rpc('set_event_application_status', { application_id: button.dataset.applicationId, new_status: button.dataset.applicationStatus });
                     if (error) { button.disabled = false; organizerMessage(error.message, true); }
-                    else { participants = await loadParticipants(); loadApplications(); }
+                    else { participants = await loadParticipants(); await loadApplications(); }
                 }));
                 applications.querySelectorAll('[data-participant-action]').forEach((button) => button.addEventListener('click', async () => {
                     button.disabled = true;
                     const { error } = await supabaseClient.rpc('organizer_set_participant_state', { event_id: event.id, participant_id: button.dataset.participantId, action: button.dataset.participantAction });
                     if (error) { button.disabled = false; organizerMessage(error.message, true); return; }
                     participants = await loadParticipants();
-                    loadApplications();
+                    await loadApplications();
                 }));
                 applications.querySelector('[data-cancel-event]')?.addEventListener('click', async () => {
                     if (!window.confirm('Vai tiešām atcelt šo pasākumu? Tas vairs nebūs pieejams dalībniekiem.')) return;
@@ -665,8 +666,12 @@ function setupEventDetail() {
         });
         const { data: ownApplication } = currentUser ? await supabaseClient.from('event_applications').select('status').eq('event_id', event.id).eq('volunteer_id', currentUser.id).maybeSingle() : { data: null };
         if (ownApplication && joinForm?.isConnected) {
-            showFormMessage(applicationStatusMessage(ownApplication.status));
-            joinForm.querySelector('button[type="submit"]').disabled = true;
+            if (ownApplication.status === 'approved') {
+                joinForm.closest('[data-event-join]')?.remove();
+            } else {
+                showFormMessage(applicationStatusMessage(ownApplication.status));
+                joinForm.querySelector('button[type="submit"]').disabled = true;
+            }
         }
         if (event.event_date < eventToday() && joinForm?.isConnected) {
             showFormMessage('Pasākums ir beidzies. Pieteikšanās ir slēgta.');
@@ -1038,7 +1043,8 @@ async function renderCustomEvents() {
             <h3>${escapeHtml(event.title)}</h3>
             <p>${escapeHtml(event.description)}</p>
             ${event.volunteer_roles ? `<p class="event-roles"><strong>Lomas:</strong> ${escapeHtml(event.volunteer_roles)}</p>` : ''}
-            <div><span>${escapeHtml(event.location)}</span><a href="event.html?id=${encodeURIComponent(event.id)}" aria-label="Skatīt ${escapeHtml(event.title)}">→</a></div>
+            <div><span>${escapeHtml(event.location)}</span></div>
+            <a href="event.html?id=${encodeURIComponent(event.id)}" class="btn-card">Skatīt pasākumu</a>
             <a href="report.html?event=${encodeURIComponent(event.id)}" class="text-button">Ziņot par pasākumu</a>
         </article>
     `).join('') : '<p class="no-results">Apstiprinātu pasākumu pašlaik nav.</p>';
