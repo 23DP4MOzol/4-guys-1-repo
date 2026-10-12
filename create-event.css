@@ -250,3 +250,14 @@ body.dark-mode.create-event-page .role-add-button:focus-visible {
     .create-event-page .location-picker { grid-template-columns: 1fr; }
 }
 .date-suggested { color: var(--text-muted) !important; }
+
+.image-crop-dialog { box-sizing: border-box; }
+.crop-actions { flex-wrap: wrap; }
+.crop-actions button { flex: 0 0 auto; min-width: max-content; white-space: nowrap; }
+body.dark-mode .image-crop-dialog { background: #17224b; border: 1px solid #425584; color: #f5f7ff; color-scheme: dark; }
+body.dark-mode .image-crop-dialog p { color: #c8d1ed; }
+@media (max-width: 520px) {
+  .image-crop-dialog { padding: 1rem; width: calc(100vw - 1.5rem); }
+  .crop-actions { gap: .6rem; }
+  .crop-actions button { padding-left: .85rem; padding-right: .85rem; }
+}

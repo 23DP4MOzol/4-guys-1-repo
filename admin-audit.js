@@ -7,6 +7,20 @@ function setupAdminAudit() {
     const clear = dialog.querySelector('[data-audit-clear]');
     const titles = { events: 'Pasākums', event_applications: 'Pieteikums', event_messages: 'Čata ziņa', profiles: 'Profils', reports: 'Ziņojums', event_participant: 'Dalībnieks', audit: 'Audita žurnāls' };
     const actions = { INSERT: 'Izveidoja', UPDATE: 'Mainīja', DELETE: 'Dzēsa', event_participant_mute: 'Apklusināja dalībnieku', event_participant_unmute: 'Atļāva rakstīt čatā', event_participant_kick: 'Noņēma dalībnieku', cleared_user_audit: 'Notīrīja lietotāja žurnālu' };
+    const fieldLabels = { title: 'nosaukumu', status: 'statusu', event_date: 'datumu', location: 'atrašanās vietu', description: 'aprakstu', role: 'lomu', is_banned: 'bloķēšanas statusu', banned_until: 'bloķēšanas termiņu', priority: 'prioritāti' };
+    const formatDetails = details => {
+        if (!details || typeof details !== 'object') return 'Darbība veikta.';
+        const parts = [];
+        if (details.title) parts.push(`Nosaukums: ${details.title}`);
+        if (details.status_from || details.status_to) parts.push(`Statuss: ${details.status_from || '—'} → ${details.status_to || '—'}`);
+        if (details.role_from || details.role_to) parts.push(`Loma: ${details.role_from || '—'} → ${details.role_to || '—'}`);
+        if (Array.isArray(details.changed_fields) && details.changed_fields.length) {
+            parts.push(`Mainīts: ${details.changed_fields.map(field => fieldLabels[field] || 'dati').join(', ')}`);
+        }
+        if (details.deleted_count !== undefined) parts.push(`Notīrīto ierakstu skaits: ${details.deleted_count}`);
+        if (details.reason) parts.push(`Iemesls: ${details.reason}`);
+        return parts.join(' · ') || 'Darbība veikta.';
+    };
     let selectedUser;
     let offset = 0;
     let generation = 0;
@@ -25,8 +39,8 @@ function setupAdminAudit() {
             if (error) throw error;
             const logs = data || [];
             list.insertAdjacentHTML('beforeend', logs.map(log => `<tr><td>${escapeHtml(new Date(log.created_at).toLocaleString('lv-LV', { timeZone: 'Europe/Riga' }))}</td>
-                <td>${escapeHtml(actions[log.action] || log.action)}</td><td>${escapeHtml(titles[log.entity_type] || log.entity_type)}<br><small>${escapeHtml(log.entity_id || '')}</small></td>
-                <td>${escapeHtml(Object.entries(log.details || {}).map(([key, value]) => `${key}: ${typeof value === 'object' ? JSON.stringify(value) : value}`).join(' · ') || '—')}</td></tr>`).join(''));
+                <td>${escapeHtml(actions[log.action] || 'Mainīja datus')}</td><td>${escapeHtml(titles[log.entity_type] || 'Sistēmas objekts')}</td>
+                <td>${escapeHtml(formatDetails(log.details))}</td></tr>`).join(''));
             offset += logs.length;
             more.hidden = logs.length < 50;
             status.textContent = offset ? `Parādītas ${offset} darbības.` : 'Pēdējās 14 dienās darbību nav.';

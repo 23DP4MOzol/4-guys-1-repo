@@ -774,3 +774,6 @@ body.dark-mode.event-detail-page .event-map-card .event-map {
 .organizer-table small { display: block; margin-top: .5rem; color: var(--text-muted); }
 body.event-detail-page .event-chat-form[hidden] { display: none; }
 .chat-message time { display: block; font-size: .75rem; color: var(--text-muted); margin: .3rem 0; }
+
+/* Keep the role heading aligned with the centered event facts. */
+body.event-detail-page .event-detail-roles .role-capacity-list { align-items: center; }

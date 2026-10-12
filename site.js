@@ -52,7 +52,7 @@ async function getCurrentUser() {
 
     let { data: profile, error: profileError } = await supabaseClient
         .from('profiles')
-        .select('id, full_name, role, is_banned, avatar_path')
+        .select('id, full_name, role, is_banned, banned_until, avatar_path')
         .eq('id', user.id)
         .single();
 
@@ -60,18 +60,44 @@ async function getCurrentUser() {
     if (profileError) {
         const fallback = await supabaseClient
             .from('profiles')
-            .select('id, full_name, role, is_banned')
+            .select('id, full_name, role, is_banned, banned_until')
             .eq('id', user.id)
             .single();
         profile = fallback.data;
     }
 
-    if (profile?.is_banned) {
+    if (isBanActive(profile)) {
+        sessionStorage.setItem('voluntio-ban-notice', JSON.stringify({ bannedUntil: profile.banned_until || null }));
         await supabaseClient.auth.signOut();
         return null;
     }
 
     return { ...user, profile };
+}
+
+function isBanActive(profile) {
+    if (!profile?.is_banned) return false;
+    if (!profile.banned_until || profile.banned_until === 'infinity') return true;
+    const expiry = new Date(profile.banned_until).getTime();
+    return Number.isNaN(expiry) || expiry > Date.now();
+}
+
+function showStoredBanNotice() {
+    const rawNotice = sessionStorage.getItem('voluntio-ban-notice');
+    if (!rawNotice) return;
+    sessionStorage.removeItem('voluntio-ban-notice');
+    let notice;
+    try { notice = JSON.parse(rawNotice); } catch { return; }
+    const dialog = document.createElement('dialog');
+    dialog.className = 'account-blocked-dialog';
+    const until = !notice.bannedUntil || notice.bannedUntil === 'infinity'
+        ? 'Bloķēšanas termiņš nav noteikts.'
+        : `Bloķēšana beigsies ${new Date(notice.bannedUntil).toLocaleString('lv-LV', { timeZone: 'Europe/Riga' })}.`;
+    dialog.innerHTML = `<h2>Piekļuve vietnei bloķēta</h2><p>Tavam kontam pašlaik nav atļauts piekļūt Voluntio vietnei.</p><p>${until}</p><button type="button" class="auth-submit" data-blocked-close>Aizvērt</button>`;
+    document.body.append(dialog);
+    dialog.showModal();
+    dialog.querySelector('[data-blocked-close]').addEventListener('click', () => dialog.close());
+    dialog.addEventListener('close', () => dialog.remove(), { once: true });
 }
 
 function initialsForName(name) {
@@ -791,7 +817,7 @@ async function setupAdminDashboard(currentUser) {
     if (!document.querySelector('[data-admin-stat]') || currentUser?.profile?.role !== 'admin') return;
 
     const [usersResult, eventsResult, applicationsResult, pendingResult] = await Promise.all([
-        supabaseClient.from('profiles').select('id, full_name, role, is_banned, created_at').order('created_at', { ascending: false }),
+        supabaseClient.from('profiles').select('id, full_name, role, is_banned, banned_until, created_at').order('created_at', { ascending: false }),
         supabaseClient.from('events').select('id, creator_id, title, status, event_date').order('event_date', { ascending: true }),
         supabaseClient.from('event_applications').select('id, event_id, status, created_at, volunteer_id').order('created_at', { ascending: false }),
         supabaseClient.from('events').select('id', { count: 'exact', head: true }).eq('status', 'pending')
@@ -821,7 +847,7 @@ async function setupAdminDashboard(currentUser) {
 
     const userList = document.querySelector('[data-admin-users]');
     if (userList) userList.innerHTML = users.length ? users.map((user) => `
-        <tr><td>${escapeHtml(user.full_name)}</td><td title="${escapeHtml(user.id)}">${escapeHtml(user.id.slice(0, 8))}...</td><td>${user.role === 'admin' ? 'Administrators' : 'Brīvprātīgais'}</td><td>${applications.filter((application) => application.profiles?.id === user.id).length}</td><td><span class="status status-${user.is_banned ? 'rejected' : 'approved'}">${user.is_banned ? 'Bloķēts' : 'Aktīvs'}</span></td><td><button class="table-button" type="button" data-user-action="${user.role === 'admin' ? 'demote' : 'promote'}" data-user-id="${user.id}">${user.role === 'admin' ? 'Noņemt adminu' : 'Promovēt adminam'}</button> <button class="table-button table-button-danger" type="button" data-user-action="${user.is_banned ? 'unban' : 'ban'}" data-user-id="${user.id}">${user.is_banned ? 'Atbloķēt' : 'Bloķēt'}</button> <button class="table-button" type="button" data-user-audit-id="${user.id}" data-user-audit-name="${escapeHtml(user.full_name)}">Audit Log</button></td></tr>
+        <tr><td>${escapeHtml(user.full_name)}</td><td title="${escapeHtml(user.id)}">${escapeHtml(user.id.slice(0, 8))}...</td><td>${user.role === 'admin' ? 'Administrators' : 'Brīvprātīgais'}</td><td>${applications.filter((application) => application.profiles?.id === user.id).length}</td><td><span class="status status-${isBanActive(user) ? 'rejected' : 'approved'}">${isBanActive(user) ? 'Bloķēts' : 'Aktīvs'}</span>${isBanActive(user) && user.banned_until ? `<small class="ban-until">līdz ${escapeHtml(new Date(user.banned_until).toLocaleDateString('lv-LV', { timeZone: 'Europe/Riga' }))}</small>` : ''}</td><td><button class="table-button" type="button" data-user-action="${user.role === 'admin' ? 'demote' : 'promote'}" data-user-id="${user.id}">${user.role === 'admin' ? 'Noņemt adminu' : 'Paaugstināt par adminu'}</button> <button class="table-button table-button-danger" type="button" data-user-action="${isBanActive(user) ? 'unban' : 'ban'}" data-user-id="${user.id}" data-user-name="${escapeHtml(user.full_name)}">${isBanActive(user) ? 'Atbloķēt' : 'Bloķēt'}</button> <button class="table-button" type="button" data-user-audit-id="${user.id}" data-user-audit-name="${escapeHtml(user.full_name)}">Audit Log</button></td></tr>
     `).join('') : adminEmptyRow(6, 'Lietotāju nav.');
 
     const applicationList = document.querySelector('[data-admin-applications]');
@@ -868,16 +894,43 @@ async function setupAdminDashboard(currentUser) {
         });
     });
 
+    const banDialog = document.querySelector('[data-ban-dialog]');
+    const banForm = banDialog?.querySelector('[data-ban-form]');
+    if (banForm && !banForm.dataset.bound) {
+        banForm.dataset.bound = 'true';
+        const closeBanDialog = () => banDialog.close();
+        banDialog.querySelector('[data-ban-close]')?.addEventListener('click', closeBanDialog);
+        banDialog.querySelector('[data-ban-cancel]')?.addEventListener('click', closeBanDialog);
+        banForm.addEventListener('submit', async (event) => {
+            event.preventDefault();
+            const duration = banForm.querySelector('[data-ban-duration]').value;
+            const banHours = duration === 'permanent' ? null : Number(duration);
+            const submitButton = banForm.querySelector('button[type="submit"]');
+            submitButton.disabled = true;
+            const { error } = await supabaseClient.rpc('admin_set_user_banned', { target_user_id: banForm.dataset.userId, should_ban: true, ban_hours: banHours });
+            submitButton.disabled = false;
+            if (error) { showFormMessage(error.message, true); return; }
+            closeBanDialog();
+            await setupAdminDashboard(currentUser);
+        });
+    }
+
     userList?.querySelectorAll('[data-user-action]').forEach((button) => {
         button.addEventListener('click', async () => {
             const action = button.dataset.userAction;
-            const confirmation = action === 'ban' || action === 'demote';
+            if (action === 'ban' && banDialog && banForm) {
+                banForm.dataset.userId = button.dataset.userId;
+                banDialog.querySelector('[data-ban-user]').textContent = `Lietotājs: ${button.dataset.userName || 'Nezināms lietotājs'}`;
+                banDialog.showModal();
+                return;
+            }
+            const confirmation = action === 'unban' || action === 'demote';
             if (confirmation && !window.confirm('Vai tiešām vēlies veikt šo darbību?')) return;
             button.disabled = true;
             const rpcName = action === 'promote' || action === 'demote' ? 'admin_set_user_role' : 'admin_set_user_banned';
             const rpcArgs = rpcName === 'admin_set_user_role'
                 ? { target_user_id: button.dataset.userId, target_role: action === 'promote' ? 'admin' : 'user' }
-                : { target_user_id: button.dataset.userId, should_ban: action === 'ban' };
+                : { target_user_id: button.dataset.userId, should_ban: false, ban_hours: null };
             const { error } = await supabaseClient.rpc(rpcName, rpcArgs);
             if (error) {
                 button.disabled = false;
@@ -999,7 +1052,7 @@ async function renderCustomEvents() {
         const { data, error } = await supabaseClient
             .from('events')
             .select('id, title, category, event_date, location, description, volunteer_roles, status, event_images(storage_path, sort_order)')
-            .in('status', ['approved', 'archived'])
+            .eq('status', 'approved')
             .order('event_date', { ascending: true });
 
         if (error) throw error;
@@ -1573,13 +1626,14 @@ async function translateWithApi(text, sourceLanguage, targetLanguage) {
 document.addEventListener('DOMContentLoaded', async () => {
     removeTranslationArtifacts();
     setupImageLightbox();
-    // Initialize local cards before any remote Supabase request.
     setupEventFilters();
-    renderCustomEvents();
     const currentUser = await getCurrentUser();
+    showStoredBanNotice();
     if (!await guardPage(currentUser)) {
         return;
     }
+    // A banned session is signed out by getCurrentUser before public queries run.
+    renderCustomEvents();
     updateAuthLinks(currentUser);
     setupPagePreferences();
     setupNavigation();

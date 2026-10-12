@@ -38,6 +38,7 @@ create table if not exists public.profiles (
 
 alter table public.profiles add column if not exists is_banned boolean not null default false;
 alter table public.profiles add column if not exists avatar_path text;
+alter table public.profiles add column if not exists banned_until timestamptz;
 
 create table if not exists public.events (
     id uuid primary key default gen_random_uuid(),
@@ -158,7 +159,7 @@ stable
 as $$
     select exists (
         select 1 from public.profiles
-        where id = auth.uid() and role = 'admin'
+        where id = auth.uid() and role = 'admin' and (not is_banned or banned_until is null or banned_until <= now())
     );
 $$;
 
@@ -179,7 +180,8 @@ begin
 end;
 $$;
 
-create or replace function public.admin_set_user_banned(target_user_id uuid, should_ban boolean)
+drop function if exists public.admin_set_user_banned(uuid, boolean);
+create or replace function public.admin_set_user_banned(target_user_id uuid, should_ban boolean, ban_hours integer default null)
 returns void
 language plpgsql
 security definer
@@ -192,9 +194,18 @@ begin
     if target_user_id = auth.uid() then
         raise exception 'You cannot ban yourself';
     end if;
-    update public.profiles set is_banned = should_ban where id = target_user_id;
+    if should_ban and ban_hours is not null and ban_hours <= 0 then
+        raise exception 'Ban duration must be positive';
+    end if;
+    update public.profiles
+    set is_banned = should_ban,
+        banned_until = case when should_ban then coalesce(now() + make_interval(hours => ban_hours), 'infinity'::timestamptz) else null end
+    where id = target_user_id;
+    if not found then
+        raise exception 'User not found';
+    end if;
     update auth.users
-    set banned_until = case when should_ban then 'infinity'::timestamptz else null end
+    set banned_until = case when should_ban then coalesce(now() + make_interval(hours => ban_hours), 'infinity'::timestamptz) else null end
     where id = target_user_id;
 end;
 $$;
@@ -538,7 +549,7 @@ stable
 as $$
     select
         (select count(*) from public.events where status = 'approved' and event_date >= current_date),
-        (select count(*) from public.profiles where not is_banned)
+        (select count(*) from public.profiles where (not is_banned or banned_until is null or banned_until <= now()))
 $$;
 
 revoke execute on function public.community_stats() from public;
@@ -770,7 +781,7 @@ declare
     longitude_value double precision := nullif(trim(event_data->>'longitude'), '')::double precision;
 begin
     if actor is null or not exists (
-        select 1 from public.profiles where id = actor and not is_banned
+        select 1 from public.profiles where id = actor and (not is_banned or banned_until is null or banned_until <= now())
     ) then
         raise exception 'Sign in with an active account to save an event';
     end if;
@@ -1014,7 +1025,7 @@ create policy "Users can apply to approved events" on public.event_applications 
 with check (volunteer_id = auth.uid() and status = 'pending' and exists (
     select 1 from public.events where id = event_id and status = 'approved'
     and event_date >= public.event_today() and creator_id <> auth.uid()
-) and exists (select 1 from public.profiles where id = auth.uid() and not is_banned));
+) and exists (select 1 from public.profiles where id = auth.uid() and (not is_banned or banned_until is null or banned_until <= now())));
 
 -- One RLS-safe source of chat permissions, shared by the UI and message policies.
 create or replace function public.event_chat_access(target_event_id uuid)
@@ -1025,7 +1036,7 @@ declare
     application_status public.application_status;
     muted boolean;
 begin
-    if auth.uid() is null or not exists (select 1 from public.profiles where id = auth.uid() and not is_banned) then
+    if auth.uid() is null or not exists (select 1 from public.profiles where id = auth.uid() and (not is_banned or banned_until is null or banned_until <= now())) then
         return jsonb_build_object('can_read', false, 'can_write', false, 'reason', 'sign_in');
     end if;
     select * into event_record from public.events where id = target_event_id;
@@ -1136,7 +1147,7 @@ returns bigint language plpgsql security definer set search_path = public, pg_te
 as $$
 declare deleted_count bigint;
 begin
-    if not public.is_admin() or not exists (select 1 from public.profiles where id = auth.uid() and not is_banned) then
+    if not public.is_admin() or not exists (select 1 from public.profiles where id = auth.uid() and (not is_banned or banned_until is null or banned_until <= now())) then
         raise exception 'Only administrators can clear audit logs';
     end if;
     if target_user_id is null then raise exception 'Select a user'; end if;

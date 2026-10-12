@@ -4,4 +4,11 @@
 .audit-actions { display: flex; gap: 1rem; justify-content: space-between; margin-top: 1rem; flex-wrap: wrap; }
 .audit-dialog [hidden] { display: none; }
 .audit-dialog td { white-space: normal; overflow-wrap: anywhere; }
+.ban-dialog { width: min(480px, 92vw); margin: auto; padding: 1.5rem; border: 1px solid var(--border-color); border-radius: 1rem; background: var(--card-bg); color: var(--text-main); }
+.ban-dialog::backdrop { background: rgba(0, 0, 0, .65); }
+.ban-dialog form { display: grid; gap: .9rem; }
+.ban-dialog select { width: 100%; padding: .75rem; border: 1px solid var(--border-color); border-radius: .5rem; background: var(--card-bg); color: var(--text-main); }
+.ban-dialog .form-hint { color: var(--text-muted); font-size: .9rem; line-height: 1.45; }
+.admin-form-message { width: min(1100px, 94vw); margin: 1rem auto; color: var(--text-main); }
+.admin-form-message.form-error { color: #b42318; }
 .admin-table-section td:last-child .table-button { margin: .2rem; }

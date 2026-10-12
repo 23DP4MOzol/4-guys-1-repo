@@ -100,12 +100,28 @@
             </div>
         </section>
     </main>
+    <p class="admin-form-message" data-form-message role="status" aria-live="polite"></p>
     <dialog class="audit-dialog" data-audit-dialog aria-labelledby="audit-title">
         <div class="section-heading"><h2 id="audit-title">Audit Log</h2><button type="button" class="table-button" data-audit-close>Aizvērt</button></div>
         <p data-audit-user></p><p>Saglabājam pēdējo 14 dienu darbības. Laiks norādīts Latvijas laika joslā.</p>
         <p role="status" data-audit-status></p>
         <div class="table-wrap"><table><thead><tr><th>Datums un laiks</th><th>Darbība</th><th>Objekts</th><th>Izmaiņas</th></tr></thead><tbody data-user-audit></tbody></table></div>
         <div class="audit-actions"><button type="button" class="table-button" data-audit-more hidden>Rādīt vairāk</button><button type="button" class="table-button table-button-danger" data-audit-clear>Notīrīt šī lietotāja žurnālu</button></div>
+    </dialog>
+    <dialog class="ban-dialog" data-ban-dialog aria-labelledby="ban-title">
+        <form method="dialog" data-ban-form>
+            <div class="section-heading"><h2 id="ban-title">Bloķēt lietotāju</h2><button type="button" class="table-button" data-ban-close>Aizvērt</button></div>
+            <p data-ban-user></p>
+            <label for="ban-duration">Bloķēšanas ilgums</label>
+            <select id="ban-duration" data-ban-duration required>
+                <option value="24">24 stundas</option>
+                <option value="168">7 dienas</option>
+                <option value="720">30 dienas</option>
+                <option value="permanent">Neierobežots laiks</option>
+            </select>
+            <p class="form-hint">Lietotājs nevarēs piekļūt vietnei izvēlētajā periodā. Pēc termiņa beigām piekļuve tiks atjaunota automātiski.</p>
+            <div class="audit-actions"><button type="button" class="table-button" data-ban-cancel>Atcelt</button><button class="table-button table-button-danger" type="submit">Bloķēt lietotāju</button></div>
+        </form>
     </dialog>
 
     <footer>
