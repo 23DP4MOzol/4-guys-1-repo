@@ -751,6 +751,21 @@ body.dark-mode:not(.auth-page) .hero h1, body.dark-mode:not(.auth-page) .events-
 .nav-preferences { flex: 0 0 9.95rem; justify-content: space-between; }.nav-preference { text-align: center; width: 4.7rem; }
 .hero .btn-card { align-items: center; background: #364db5; color: #fff; display: inline-flex; justify-content: center; min-height: 3rem; text-decoration: none; }
 
+.profile-impact-stats { display: grid; gap: .75rem; grid-template-columns: repeat(2, minmax(0, 1fr)); margin: 1.25rem 0; }
+.profile-impact-stats div { background: #f4f6ff; border: 1px solid #dce2f5; border-radius: 10px; padding: 1rem; }
+.profile-impact-stats strong { color: #364db5; display: block; font-size: 1.8rem; line-height: 1; }
+.profile-impact-stats span { color: var(--text-muted); display: block; font-size: .78rem; margin-top: .45rem; }
+.achievement-list { display: grid; gap: .7rem; }
+.achievement-badge { align-items: center; background: #fff9f2; border: 1px solid #ffd49f; border-radius: 10px; display: flex; gap: .75rem; padding: .75rem; }
+.achievement-badge-mark { align-items: center; background: #ffb467; border-radius: 50%; color: #17224b; display: inline-flex; flex: 0 0 auto; font-size: .8rem; font-weight: 850; height: 2rem; justify-content: center; width: 2rem; }
+.achievement-badge strong, .achievement-badge small { display: block; }
+.achievement-badge strong { color: #17224b; font-size: .88rem; }
+.achievement-badge small { color: #667085; line-height: 1.4; margin-top: .15rem; }
+body.dark-mode:not(.auth-page) .profile-impact-stats div { background: #202f5d; border-color: #425584; }
+body.dark-mode:not(.auth-page) .achievement-badge { background: #332d27; border-color: #8b663c; }
+body.dark-mode:not(.auth-page) .achievement-badge strong { color: #f5f7ff; }
+body.dark-mode:not(.auth-page) .achievement-badge small { color: #c8d1ed; }
+
 /* Stable primary navigation */
 body:not(.auth-page) .navbar {
     display: grid;
@@ -917,6 +932,12 @@ img, video, iframe { max-width: 100%; }
     body:not(.auth-page) .navbar .auth-buttons { align-items: stretch; flex-wrap: wrap; }
     body:not(.auth-page) .navbar .auth-buttons a,
     body:not(.auth-page) .navbar .auth-buttons button { min-width: 0; overflow-wrap: anywhere; }
+    body:not(.auth-page) .navbar .auth-buttons { display: grid; gap: .6rem; }
+    body:not(.auth-page) .navbar .user-profile,
+    body:not(.auth-page) .navbar .logout-button { min-height: 2.8rem; width: 100%; }
+    body:not(.auth-page) .navbar .user-profile { justify-content: flex-start; padding: .35rem .75rem; }
+    body:not(.auth-page) .navbar .logout-button { margin: 0; }
+    body:not(.auth-page) .navbar .nav-links a[href="pieteikties.html"] { display: block; }
     body:not(.auth-page) .navbar .nav-preferences { flex-wrap: wrap; }
 
     .events-main { min-width: 0; padding: 2.5rem 1rem 4rem; }

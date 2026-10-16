@@ -49,6 +49,10 @@
                 <input id="date" name="date" type="date" required>
                 <p class="field-help" data-date-hint>Šodienas datumu vari mainīt uz vēlāku datumu.</p>
 
+                <label for="volunteer-hours">Darba stundas vienam dalībniekam</label>
+                <input id="volunteer-hours" name="volunteerHours" type="number" min="0.5" max="24" step="0.5" value="1" required>
+                <p class="field-help">Šīs stundas tiks piešķirtas tikai pēc administratora pārbaudes.</p>
+
                 <label for="location">Norises vieta</label>
                 <input id="location" name="location" type="search" autocomplete="street-address" placeholder="Sāc rakstīt adresi vai vietu Latvijā" required data-location-search>
                 <div class="location-picker" data-location-picker>

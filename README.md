@@ -57,6 +57,10 @@ Latvijas jauniešu iespēju un neformālās izglītības platforma, kas darbojas
 
 uzstādīšanas un palaišanas instrukcija (soon to change)
 
+### Supabase migrācijas
+
+Pēc `supabase-all.sql` un pārējo esošo migrāciju palaišanas palaid `supabase-achievements.sql`. Tā pievieno pasākuma stundu skaitu, organizatora pabeigšanas pieprasījumu, administratora pārbaudi, pārbaudītās brīvprātīgā darba stundas un sasniegumu nozīmītes. Stundas tiek piešķirtas tikai administratora apstiprinātam pasākumam un tikai apstiprinātajiem dalībniekiem.
+
 ## Komandas dalībnieki:
 
 ### 1. Frontend

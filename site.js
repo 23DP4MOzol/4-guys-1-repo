@@ -144,12 +144,15 @@ async function guardPage(currentUser) {
 
 function updateAuthLinks(currentUser) {
     const authButtons = document.querySelector('.auth-buttons');
+    const navbar = authButtons?.closest('.navbar');
     const isAdmin = currentUser?.profile?.role === 'admin';
     document.querySelectorAll('.hero-text-link').forEach((link) => { link.hidden = Boolean(currentUser); });
 
     document.querySelectorAll('a[href="admin.html"]').forEach((link) => {
         link.closest('li')?.classList.toggle('hidden-nav-item', !isAdmin);
     });
+
+    navbar?.classList.toggle('has-auth-user', Boolean(currentUser));
 
     if (!authButtons || !currentUser) {
         return;
@@ -249,11 +252,12 @@ function setupEventForm() {
         capacity: Number(row.querySelector('[name="role-count"]').value)
     }));
     if (editId) {
-        supabaseClient.from('events').select('title, category, event_date, location, latitude, longitude, volunteer_roles, volunteer_role_requirements, description, whitelist_volunteers, event_images(storage_path, original_storage_path, sort_order)').eq('id', editId).single().then(({ data, error }) => {
+        supabaseClient.from('events').select('title, category, event_date, location, latitude, longitude, volunteer_roles, volunteer_role_requirements, volunteer_hours, description, whitelist_volunteers, event_images(storage_path, original_storage_path, sort_order)').eq('id', editId).single().then(({ data, error }) => {
             if (error || !data) throw error || new Error('Pasākums nav atrasts.');
             form.elements.title.value = data.title;
             form.elements.category.value = data.category;
             form.elements.date.value = data.event_date;
+            form.elements.volunteerHours.value = data.volunteer_hours || 1;
             form.elements.location.value = data.location;
             form.elements.latitude.value = data.latitude ?? '';
             form.elements.longitude.value = data.longitude ?? '';
@@ -323,6 +327,7 @@ function setupEventForm() {
             const longitude = Number(form.elements.longitude.value);
             const location = form.elements.location.value.trim();
             const description = form.elements.description.value.trim();
+            const volunteerHours = Number(form.elements.volunteerHours.value);
             if (!form.elements.latitude.value.trim() || !form.elements.longitude.value.trim() ||
                 !Number.isFinite(latitude) || !Number.isFinite(longitude) || Math.abs(latitude) > 90 || Math.abs(longitude) > 180) {
                 showFormMessage('Izvēlies vietu no kartes vai meklēšanas rezultātiem, lai saglabātu pasākumu.', true);
@@ -331,6 +336,11 @@ function setupEventForm() {
             }
             if (!location || !description) {
                 showFormMessage('Aizpildi pasākuma vietu un aprakstu, lai turpinātu.', true);
+                return;
+            }
+            if (!Number.isFinite(volunteerHours) || volunteerHours <= 0 || volunteerHours > 24) {
+                showFormMessage('Norādi darba stundas no 0,5 līdz 24.', true);
+                form.elements.volunteerHours.focus();
                 return;
             }
             if (!roleRequirements.length || roleRequirements.some((role) => !role.name || !Number.isInteger(role.capacity) || role.capacity < 1)) {
@@ -351,6 +361,7 @@ function setupEventForm() {
                 volunteer_role_requirements: roleRequirements,
                 description,
                 whitelist_volunteers: form.elements.whitelist.checked,
+                volunteer_hours: volunteerHours,
                 status: 'pending'
             };
             showFormMessage('Saglabā pasākumu un attēlus...');
@@ -603,7 +614,7 @@ function setupEventDetail() {
     const joinForm = document.querySelector('[data-detail-application]');
     let currentUser;
     const load = async () => {
-        const result = await supabaseClient.from('events').select('id, title, category, event_date, location, latitude, longitude, description, volunteer_roles, volunteer_role_requirements, creator_id, status, event_images(storage_path, original_storage_path, sort_order), profiles!events_creator_id_fkey(full_name, avatar_path)').eq('id', eventId).single();
+        const result = await supabaseClient.from('events').select('id, title, category, event_date, location, latitude, longitude, description, volunteer_roles, volunteer_role_requirements, volunteer_hours, creator_id, status, event_images(storage_path, original_storage_path, sort_order), profiles!events_creator_id_fkey(full_name, avatar_path)').eq('id', eventId).single();
         if (result.error) { detail.innerHTML = `<h1>Pasākums nav atrasts</h1><p>${escapeHtml(result.error.message)}</p>`; return; }
         const event = result.data;
         if (event.status === 'archived') {
@@ -615,7 +626,7 @@ function setupEventDetail() {
         }
         const { data: availability } = await supabaseClient.rpc('event_role_availability', { target_event_id: event.id });
         const roles = (availability || eventRoles(event)).map((role) => ({ name: role.role_name || role.name, capacity: Number(role.capacity), filled: Number(role.filled || 0) }));
-        detail.innerHTML = `<div class="event-hero-copy"><p class="eyebrow">${escapeHtml(event.category)}</p><h1>${escapeHtml(event.title)}</h1><p>${escapeHtml(event.description)}</p></div><div class="event-facts"><span>📅 ${escapeHtml(event.event_date)}</span><span>📍 ${escapeHtml(event.location)}</span><span>👥 ${roles.reduce((total, role) => total + role.filled, 0)} / ${roles.reduce((total, role) => total + role.capacity, 0)} brīvprātīgie</span></div><div class="event-detail-grid"><div class="event-detail-block event-detail-roles"><span class="detail-label">Nepieciešamās lomas</span><div class="role-capacity-list">${roles.map((role) => `<span>${escapeHtml(role.name)} <strong>(${role.filled}/${role.capacity})</strong></span>`).join('') || '<span>Lomas nav norādītas.</span>'}</div></div></div>`;
+        detail.innerHTML = `<div class="event-hero-copy"><p class="eyebrow">${escapeHtml(event.category)}</p><h1>${escapeHtml(event.title)}</h1><p>${escapeHtml(event.description)}</p></div><div class="event-facts"><span>📅 ${escapeHtml(event.event_date)}</span><span>📍 ${escapeHtml(event.location)}</span><span>⏱️ ${escapeHtml(event.volunteer_hours || 1)} stundas vienam dalībniekam</span><span>👥 ${roles.reduce((total, role) => total + role.filled, 0)} / ${roles.reduce((total, role) => total + role.capacity, 0)} brīvprātīgie</span></div><div class="event-detail-grid"><div class="event-detail-block event-detail-roles"><span class="detail-label">Nepieciešamās lomas</span><div class="role-capacity-list">${roles.map((role) => `<span>${escapeHtml(role.name)} <strong>(${role.filled}/${role.capacity})</strong></span>`).join('') || '<span>Lomas nav norādītas.</span>'}</div></div></div>`;
         detail.dataset.creatorId = event.creator_id;
         const images = sortedEventImages(event);
         if (images.length) detail.insertAdjacentHTML('beforeend', `<div class="event-image-gallery" data-image-gallery>${images.map((image, index) => {
@@ -651,11 +662,17 @@ function setupEventDetail() {
             const applications = document.querySelector('[data-organizer-applications]');
             panel.hidden = false;
             const organizerMessage = (message, error = false) => { const status = document.querySelector('[data-organizer-status]'); status.textContent = message; status.classList.toggle('form-error', error); };
+            let { data: completion } = await supabaseClient.from('event_completions').select('id, status, notes').eq('event_id', event.id).maybeSingle();
             const loadApplications = async () => {
                 const { data, error } = await supabaseClient.from('event_applications').select('id, volunteer_id, requested_role, status, message, profiles(full_name, avatar_path)').eq('event_id', event.id).order('created_at');
                 if (error) { organizerMessage(`Pieteikumus neizdevās ielādēt: ${error.message}`, true); return; }
                 const mutedParticipants = new Set(participants.filter((participant) => participant.is_muted).map((participant) => participant.id));
-                applications.innerHTML = `<div class="organizer-event-actions"><a class="btn-card" href="create-event.html?edit=${encodeURIComponent(event.id)}">Rediģēt pasākumu</a><button class="table-button table-button-danger" type="button" data-cancel-event>Atcelt pasākumu</button></div>
+                const completionAction = event.event_date < eventToday()
+                    ? completion?.status === 'approved' ? '<span class="completion-confirmed">Pabeigšana pārbaudīta — stundas piešķirtas.</span>'
+                        : completion?.status === 'pending' ? '<span class="completion-pending">Pabeigšana gaida administratora pārbaudi.</span>'
+                        : `<button class="table-button" type="button" data-request-completion>${completion?.status === 'rejected' ? 'Iesniegt atkārtoti pārbaudei' : 'Atzīmēt kā pabeigtu'}</button>`
+                    : '';
+                applications.innerHTML = `<div class="organizer-event-actions"><a class="btn-card" href="create-event.html?edit=${encodeURIComponent(event.id)}">Rediģēt pasākumu</a>${completionAction}<button class="table-button table-button-danger" type="button" data-cancel-event>Atcelt pasākumu</button></div>
                     <div class="table-wrap"><table class="organizer-table"><thead><tr><th>Vārds</th><th>Loma</th><th>Statuss</th><th>Ziņa</th><th>Darbības</th></tr></thead><tbody>
                     ${(data || []).map(application => `<tr><td><div class="event-person-with-copy">${profileAvatarMarkup(application.profiles, 'event-person-avatar', application.profiles?.full_name)}<strong>${escapeHtml(application.profiles?.full_name || 'Lietotājs')}</strong></div></td>
                     <td>${escapeHtml(application.requested_role || 'Nav norādīta')}</td><td><span class="status status-${application.status}">${applicationStatusLabel(application.status)}</span>${mutedParticipants.has(application.volunteer_id) ? '<small>Nevar rakstīt pasākuma čatā</small>' : ''}</td>
@@ -679,6 +696,14 @@ function setupEventDetail() {
                     const { error } = await supabaseClient.from('events').update({ status: 'archived' }).eq('id', event.id).eq('creator_id', currentUser.id);
                     if (error) { button.disabled = false; organizerMessage(error.message, true); }
                     else window.location.reload();
+                });
+                applications.querySelector('[data-request-completion]')?.addEventListener('click', async (requestEvent) => {
+                    requestEvent.currentTarget.disabled = true;
+                    const { error } = await supabaseClient.rpc('request_event_completion', { target_event_id: event.id });
+                    if (error) { requestEvent.currentTarget.disabled = false; organizerMessage(error.message, true); return; }
+                    completion = { ...(completion || {}), status: 'pending' };
+                    organizerMessage('Pabeigšana nosūtīta administratora pārbaudei.');
+                    await loadApplications();
                 });
             };
             await loadApplications();
@@ -813,6 +838,77 @@ function setupAdminFilters() {
     });
 }
 
+function setupAdminUserActions(currentUser) {
+    if (!document.querySelector('[data-admin-users]') || currentUser?.profile?.role !== 'admin') return;
+    if (document.documentElement.dataset.adminUserActionsBound === 'true') return;
+    document.documentElement.dataset.adminUserActionsBound = 'true';
+
+    const banDialog = document.querySelector('[data-ban-dialog]');
+    const banForm = banDialog?.querySelector('[data-ban-form]');
+    const closeBanDialog = () => banDialog?.close();
+    banDialog?.querySelector('[data-ban-close]')?.addEventListener('click', closeBanDialog);
+    banDialog?.querySelector('[data-ban-cancel]')?.addEventListener('click', closeBanDialog);
+
+    banForm?.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const submitButton = banForm.querySelector('button[type="submit"]');
+        const duration = banForm.querySelector('[data-ban-duration]').value;
+        submitButton.disabled = true;
+        try {
+            const { error } = await supabaseClient.rpc('admin_set_user_banned', {
+                target_user_id: banForm.dataset.userId,
+                should_ban: true,
+                ban_hours: duration === 'permanent' ? null : Number(duration)
+            });
+            if (error) throw error;
+            closeBanDialog();
+            await setupAdminDashboard(currentUser);
+        } catch (error) {
+            showFormMessage(`Lietotāju neizdevās bloķēt: ${error.message}${error.code ? ` (${error.code})` : ''}`, true);
+        } finally {
+            submitButton.disabled = false;
+        }
+    });
+
+    document.addEventListener('click', async (event) => {
+        if (!(event.target instanceof Element)) return;
+        const button = event.target.closest('[data-user-action]');
+        if (!button || !button.closest('[data-admin-users]')) return;
+        const action = button.dataset.userAction;
+        if (action === 'ban' && banDialog && banForm) {
+            banForm.dataset.userId = button.dataset.userId;
+            banDialog.querySelector('[data-ban-user]').textContent = `Lietotājs: ${button.dataset.userName || 'Nezināms lietotājs'}`;
+            banDialog.showModal();
+            return;
+        }
+        if (action === 'unban' || action === 'demote') {
+            if (!window.confirm('Vai tiešām vēlies veikt šo darbību?')) return;
+        }
+
+        button.disabled = true;
+        const roleAction = action === 'promote' || action === 'demote';
+        const rpcName = roleAction ? 'admin_set_user_role' : 'admin_set_user_banned';
+        const rpcArgs = roleAction
+            ? { target_user_id: button.dataset.userId, target_role: action === 'promote' ? 'admin' : 'user' }
+            : { target_user_id: button.dataset.userId, should_ban: false, ban_hours: null };
+        try {
+            const { error } = await supabaseClient.rpc(rpcName, rpcArgs);
+            if (error) throw error;
+            if (roleAction) {
+                const { data: updatedUser, error: verificationError } = await supabaseClient.from('profiles').select('role').eq('id', button.dataset.userId).single();
+                if (verificationError) throw verificationError;
+                const expectedRole = action === 'promote' ? 'admin' : 'user';
+                if (updatedUser?.role !== expectedRole) throw new Error('Lomas maiņa netika saglabāta datubāzē.');
+            }
+            await setupAdminDashboard(currentUser);
+        } catch (error) {
+            showFormMessage(`Darbību neizdevās izpildīt: ${error.message}${error.code ? ` (${error.code})` : ''}`, true);
+        } finally {
+            button.disabled = false;
+        }
+    });
+}
+
 async function setupAdminDashboard(currentUser) {
     if (!document.querySelector('[data-admin-stat]') || currentUser?.profile?.role !== 'admin') return;
 
@@ -885,53 +981,6 @@ async function setupAdminDashboard(currentUser) {
             const { error } = await supabaseClient.from('event_applications').update({
                 status: button.dataset.applicationAction
             }).eq('id', button.dataset.applicationId);
-            if (error) {
-                button.disabled = false;
-                showFormMessage(error.message, true);
-                return;
-            }
-            await setupAdminDashboard(currentUser);
-        });
-    });
-
-    const banDialog = document.querySelector('[data-ban-dialog]');
-    const banForm = banDialog?.querySelector('[data-ban-form]');
-    if (banForm && !banForm.dataset.bound) {
-        banForm.dataset.bound = 'true';
-        const closeBanDialog = () => banDialog.close();
-        banDialog.querySelector('[data-ban-close]')?.addEventListener('click', closeBanDialog);
-        banDialog.querySelector('[data-ban-cancel]')?.addEventListener('click', closeBanDialog);
-        banForm.addEventListener('submit', async (event) => {
-            event.preventDefault();
-            const duration = banForm.querySelector('[data-ban-duration]').value;
-            const banHours = duration === 'permanent' ? null : Number(duration);
-            const submitButton = banForm.querySelector('button[type="submit"]');
-            submitButton.disabled = true;
-            const { error } = await supabaseClient.rpc('admin_set_user_banned', { target_user_id: banForm.dataset.userId, should_ban: true, ban_hours: banHours });
-            submitButton.disabled = false;
-            if (error) { showFormMessage(error.message, true); return; }
-            closeBanDialog();
-            await setupAdminDashboard(currentUser);
-        });
-    }
-
-    userList?.querySelectorAll('[data-user-action]').forEach((button) => {
-        button.addEventListener('click', async () => {
-            const action = button.dataset.userAction;
-            if (action === 'ban' && banDialog && banForm) {
-                banForm.dataset.userId = button.dataset.userId;
-                banDialog.querySelector('[data-ban-user]').textContent = `Lietotājs: ${button.dataset.userName || 'Nezināms lietotājs'}`;
-                banDialog.showModal();
-                return;
-            }
-            const confirmation = action === 'unban' || action === 'demote';
-            if (confirmation && !window.confirm('Vai tiešām vēlies veikt šo darbību?')) return;
-            button.disabled = true;
-            const rpcName = action === 'promote' || action === 'demote' ? 'admin_set_user_role' : 'admin_set_user_banned';
-            const rpcArgs = rpcName === 'admin_set_user_role'
-                ? { target_user_id: button.dataset.userId, target_role: action === 'promote' ? 'admin' : 'user' }
-                : { target_user_id: button.dataset.userId, should_ban: false, ban_hours: null };
-            const { error } = await supabaseClient.rpc(rpcName, rpcArgs);
             if (error) {
                 button.disabled = false;
                 showFormMessage(error.message, true);
@@ -1254,6 +1303,19 @@ async function setupProfilePage(currentUser) {
             }
             window.location.reload();
         }));
+    }
+    const { data: volunteerSummary, error: volunteerSummaryError } = await supabaseClient.rpc('my_volunteer_summary');
+    const summary = Array.isArray(volunteerSummary) ? volunteerSummary[0] : volunteerSummary;
+    const hours = document.querySelector('[data-profile-hours]');
+    const tasks = document.querySelector('[data-profile-tasks]');
+    const achievements = document.querySelector('[data-profile-achievements]');
+    if (!volunteerSummaryError && summary) {
+        if (hours) hours.textContent = Number(summary.total_hours || 0).toLocaleString('lv-LV');
+        if (tasks) tasks.textContent = String(summary.completed_tasks || 0);
+        const earned = Array.isArray(summary.achievements) ? summary.achievements : [];
+        if (achievements) achievements.innerHTML = earned.length ? earned.map((achievement) => `<div class="achievement-badge"><span class="achievement-badge-mark" aria-hidden="true">✓</span><div><strong>${escapeHtml(achievement.title)}</strong><small>${escapeHtml(achievement.description)}</small></div></div>`).join('') : '<p class="section-copy">Pēc pirmā pārbaudītā pasākuma šeit parādīsies tavs pirmais sasniegums.</p>';
+    } else if (achievements) {
+        achievements.innerHTML = '<p class="section-copy">Sasniegumus pašlaik neizdevās ielādēt.</p>';
     }
     form.elements.fullName.value = currentUser.profile?.full_name || '';
     form.elements.email.value = currentUser.email || '';
@@ -1633,6 +1695,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         return;
     }
     // A banned session is signed out by getCurrentUser before public queries run.
+    setupAdminUserActions(currentUser);
     renderCustomEvents();
     updateAuthLinks(currentUser);
     setupPagePreferences();
@@ -1647,6 +1710,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     setupEventDetail();
     setupAdminRequests(currentUser);
     setupAdminDashboard(currentUser);
+    setupAdminCompletionRequests(currentUser);
     setupAdminFilters();
     setupHomeSummary();
     setupFooterLinks();

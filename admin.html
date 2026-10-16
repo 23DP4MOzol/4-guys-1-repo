@@ -65,6 +65,16 @@
             </div>
         </section>
 
+        <section class="admin-section admin-table-section">
+            <div class="section-heading"><div><h2>Pabeigto pasākumu pārbaude</h2><p>Apstiprini tikai reālus brīvprātīgā darba pasākumus, pirms tiek piešķirtas stundas.</p></div><span class="table-count" data-admin-count="completions">0 gaida</span></div>
+            <div class="table-wrap">
+                <table>
+                    <thead><tr><th>Pasākums</th><th>Organizators</th><th>Datums</th><th>Statuss</th><th>Darbība</th></tr></thead>
+                    <tbody data-admin-completions></tbody>
+                </table>
+            </div>
+        </section>
+
         <section class="admin-section admin-table-section" id="applications">
             <div class="section-heading"><div><h2>Jaunākie pieteikumi</h2><p>Brīvprātīgie, kas gaida atbildi.</p></div><div class="admin-table-tools"><input type="search" placeholder="Meklēt pieteikumus" aria-label="Meklēt pieteikumus" data-admin-filter data-filter-target="applications"><span class="table-count" data-admin-count="applications">0 kopā</span></div></div>
             <div class="table-wrap">
@@ -129,7 +139,7 @@
     </footer>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="supabase-client.js"></script>
-    <script src="site.js"></script>
-    <script src="admin-audit.js"></script>
+    <script src="site.js?v=admin-controls-20261012"></script>
+    <script src="admin-audit.js?v=admin-controls-20261012"></script>
 </body>
 </html>
