@@ -242,11 +242,13 @@ body.event-detail-page .chat-list {
     background: #f8f9fe;
     border: 1px solid #e4e8f4;
     border-radius: 12px;
-    flex: 1 1 auto;
+    flex: 0 1 auto;
     gap: 0.7rem;
+    height: clamp(18rem, 45vh, 32rem);
     margin: 0 0 1rem;
-    max-height: none;
-    min-height: 18rem;
+    max-height: 32rem;
+    min-height: 0;
+    overflow-y: auto;
     padding: 0.85rem;
 }
 
@@ -712,7 +714,8 @@ body.dark-mode.event-detail-page .event-map-card .event-map {
     }
 
     body.event-detail-page .chat-list {
-        min-height: 14rem;
+        height: 20rem;
+        max-height: 20rem;
     }
 
     body.event-detail-page .event-map-card .event-map {
