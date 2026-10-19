@@ -146,6 +146,8 @@ function updateAuthLinks(currentUser) {
     const authButtons = document.querySelector('.auth-buttons');
     const navbar = authButtons?.closest('.navbar');
     const isAdmin = currentUser?.profile?.role === 'admin';
+    const guestOnlyCta = document.querySelector('[data-guest-only-cta]');
+    if (guestOnlyCta) guestOnlyCta.hidden = Boolean(currentUser);
     document.querySelectorAll('.hero-text-link').forEach((link) => { link.hidden = Boolean(currentUser); });
 
     document.querySelectorAll('a[href="admin.html"]').forEach((link) => {
@@ -816,13 +818,70 @@ async function setupAdminRequests(currentUser) {
     });
 }
 
+async function setupAdminCompletionRequests(currentUser) {
+    const list = document.querySelector('[data-admin-completions]');
+    const count = document.querySelector('[data-admin-count="completions"]');
+
+    if (!list || !currentUser || currentUser.profile?.role !== 'admin') return;
+
+    const { data: completions, error } = await supabaseClient
+        .from('event_completions')
+        .select('id, status, requested_at, events(id, title, event_date, creator_id, profiles!events_creator_id_fkey(full_name))')
+        .eq('status', 'pending')
+        .order('requested_at', { ascending: false });
+
+    if (error) {
+        list.innerHTML = adminEmptyRow(5, `Datus neizdevās ielādēt: ${error.message}`);
+        if (count) count.textContent = '0 gaida';
+        return;
+    }
+
+    const requests = completions || [];
+    if (count) count.textContent = `${requests.length} gaida`;
+    list.innerHTML = requests.length ? requests.map((completion) => {
+        const event = completion.events;
+        return `<tr><td>${escapeHtml(event?.title || 'Dzēsts pasākums')}</td><td>${escapeHtml(event?.profiles?.full_name || event?.creator_id || 'Nezināms lietotājs')}</td><td>${formatAdminDate(event?.event_date)}</td><td><span class="status status-pending">Gaida</span></td><td><button class="table-button" type="button" data-completion-action="approved" data-completion-id="${completion.id}">Apstiprināt</button> <button class="table-button table-button-danger" type="button" data-completion-action="rejected" data-completion-id="${completion.id}">Noraidīt</button></td></tr>`;
+    }).join('') : adminEmptyRow(5, 'Pabeigšanas pieprasījumu nav.');
+
+    list.querySelectorAll('[data-completion-action]').forEach((button) => {
+        button.addEventListener('click', async () => {
+            button.disabled = true;
+            const { error: reviewError } = await supabaseClient.rpc('admin_review_event_completion', {
+                target_completion_id: button.dataset.completionId,
+                decision: button.dataset.completionAction
+            });
+            if (reviewError) {
+                button.disabled = false;
+                showFormMessage(reviewError.message, true);
+                return;
+            }
+            await setupAdminCompletionRequests(currentUser);
+        });
+    });
+}
+
 function formatAdminDate(value) {
     if (!value) return '-';
-    return new Intl.DateTimeFormat('lv-LV', { dateStyle: 'short' }).format(new Date(`${value}T00:00:00`));
+    const dateValue = value instanceof Date ? value : String(value);
+    const date = dateValue instanceof Date || dateValue.includes('T') || dateValue.includes('Z')
+        ? new Date(dateValue)
+        : new Date(`${dateValue}T00:00:00`);
+    if (Number.isNaN(date.getTime())) return '-';
+    return new Intl.DateTimeFormat('lv-LV', { dateStyle: 'short' }).format(date);
 }
 
 function adminEmptyRow(columns, text) {
     return `<tr><td colspan="${columns}">${escapeHtml(text)}</td></tr>`;
+}
+
+function renderAdminTable(list, rows, columns, emptyText, renderRow) {
+    if (!list) return;
+    try {
+        list.innerHTML = rows.length ? rows.map(renderRow).join('') : adminEmptyRow(columns, emptyText);
+    } catch (error) {
+        console.error('Admin table rendering failed', error);
+        list.innerHTML = adminEmptyRow(columns, `Tabulu neizdevās parādīt: ${error.message}`);
+    }
 }
 
 function setupAdminFilters() {
@@ -918,7 +977,7 @@ async function setupAdminDashboard(currentUser) {
         supabaseClient.from('event_applications').select('id, event_id, status, created_at, volunteer_id').order('created_at', { ascending: false }),
         supabaseClient.from('events').select('id', { count: 'exact', head: true }).eq('status', 'pending')
     ]);
-    const { data: reports, error: reportsError } = await supabaseClient.from('reports').select('id, reason, priority, status, created_at, events(title)').neq('status', 'resolved').neq('status', 'dismissed').order('created_at', { ascending: false });
+    const { data: reports, error: reportsError } = await supabaseClient.from('reports').select('id, event_id, reason, priority, status, created_at').neq('status', 'resolved').neq('status', 'dismissed').order('created_at', { ascending: false });
     const users = usersResult.data || [];
     const events = (eventsResult.data || []).map(event => ({ ...event, profiles: users.find(user => user.id === event.creator_id), event_applications: (applicationsResult.data || []).filter(application => application.event_id === event.id) }));
     const applications = (applicationsResult.data || []).map(application => ({ ...application, profiles: users.find(user => user.id === application.volunteer_id), events: events.find(event => event.id === application.event_id) }));
@@ -942,19 +1001,19 @@ async function setupAdminDashboard(currentUser) {
     setCount('reports', reports?.length || 0);
 
     const userList = document.querySelector('[data-admin-users]');
-    if (userList) userList.innerHTML = users.length ? users.map((user) => `
+    renderAdminTable(userList, users, 6, 'Lietotāju nav.', (user) => `
         <tr><td>${escapeHtml(user.full_name)}</td><td title="${escapeHtml(user.id)}">${escapeHtml(user.id.slice(0, 8))}...</td><td>${user.role === 'admin' ? 'Administrators' : 'Brīvprātīgais'}</td><td>${applications.filter((application) => application.profiles?.id === user.id).length}</td><td><span class="status status-${isBanActive(user) ? 'rejected' : 'approved'}">${isBanActive(user) ? 'Bloķēts' : 'Aktīvs'}</span>${isBanActive(user) && user.banned_until ? `<small class="ban-until">līdz ${escapeHtml(new Date(user.banned_until).toLocaleDateString('lv-LV', { timeZone: 'Europe/Riga' }))}</small>` : ''}</td><td><button class="table-button" type="button" data-user-action="${user.role === 'admin' ? 'demote' : 'promote'}" data-user-id="${user.id}">${user.role === 'admin' ? 'Noņemt adminu' : 'Paaugstināt par adminu'}</button> <button class="table-button table-button-danger" type="button" data-user-action="${isBanActive(user) ? 'unban' : 'ban'}" data-user-id="${user.id}" data-user-name="${escapeHtml(user.full_name)}">${isBanActive(user) ? 'Atbloķēt' : 'Bloķēt'}</button> <button class="table-button" type="button" data-user-audit-id="${user.id}" data-user-audit-name="${escapeHtml(user.full_name)}">Audit Log</button></td></tr>
-    `).join('') : adminEmptyRow(6, 'Lietotāju nav.');
+    `);
 
     const applicationList = document.querySelector('[data-admin-applications]');
-    if (applicationList) applicationList.innerHTML = applications.length ? applications.slice(0, 20).map((application) => `
+    renderAdminTable(applicationList, applications.slice(0, 20), 5, 'Pieteikumu nav.', (application) => `
         <tr><td>${escapeHtml(application.profiles?.full_name || 'Nezināms lietotājs')}</td><td>${escapeHtml(application.events?.title || 'Dzēsts pasākums')}</td><td>${formatAdminDate(application.events?.event_date)}</td><td><span class="status status-${application.status === 'approved' ? 'approved' : application.status === 'rejected' ? 'rejected' : 'pending'}">${application.status === 'approved' ? 'Apstiprināts' : application.status === 'rejected' ? 'Noraidīts' : 'Gaida'}</span></td><td>-</td></tr>
-    `).join('') : adminEmptyRow(5, 'Pieteikumu nav.');
+    `);
 
     const eventList = document.querySelector('[data-admin-events]');
-    if (eventList) eventList.innerHTML = events.length ? events.map((event) => `
+    renderAdminTable(eventList, events, 6, 'Pasākumu nav.', (event) => `
         <tr><td><a href="event.html?id=${encodeURIComponent(event.id)}">${escapeHtml(event.title)}</a></td><td>${escapeHtml(event.profiles?.full_name || 'Nezināms lietotājs')}</td><td>${(event.event_applications || []).length}</td><td><span class="status status-${event.status === 'approved' ? 'approved' : event.status === 'rejected' ? 'rejected' : 'pending'}">${event.status === 'approved' ? 'Publicēts' : event.status === 'rejected' ? 'Noraidīts' : event.status === 'pending' ? 'Gaida' : 'Arhivēts'}</span></td><td>${formatAdminDate(event.event_date)}</td><td>${event.status !== 'archived' ? `<button class="table-button table-button-danger" type="button" data-admin-archive-event="${event.id}">Arhivēt</button>` : '-'}</td></tr>
-    `).join('') : adminEmptyRow(6, 'Pasākumu nav.');
+    `);
 
     eventList?.querySelectorAll('[data-admin-archive-event]').forEach((button) => {
         button.addEventListener('click', async () => {
@@ -967,9 +1026,9 @@ async function setupAdminDashboard(currentUser) {
     });
 
     const reportList = document.querySelector('[data-admin-reports]');
-    if (reportList) reportList.innerHTML = reports?.length ? reports.map((report) => `
-        <tr><td><span class="status status-${report.priority === 'high' ? 'rejected' : report.priority === 'low' ? 'approved' : 'pending'}">${escapeHtml(report.priority)}</span></td><td>${escapeHtml(report.reason)}</td><td>${escapeHtml(report.events?.title || 'Dzēsts pasākums')}</td><td>${formatAdminDate(report.created_at.slice(0, 10))}</td><td>${escapeHtml(report.status)}</td><td><button class="table-button" type="button" data-report-action="resolved" data-report-id="${report.id}">Atrisināts</button> <button class="table-button table-button-danger" type="button" data-report-action="dismissed" data-report-id="${report.id}">Noraidīt</button></td></tr>
-    `).join('') : adminEmptyRow(6, 'Atvērtu ziņojumu nav.');
+    renderAdminTable(reportList, reports || [], 6, 'Atvērtu ziņojumu nav.', (report) => `
+        <tr><td><span class="status status-${report.priority === 'high' ? 'rejected' : report.priority === 'low' ? 'approved' : 'pending'}">${escapeHtml(report.priority)}</span></td><td>${escapeHtml(report.reason)}</td><td>${escapeHtml(events.find((event) => event.id === report.event_id)?.title || 'Dzēsts pasākums')}</td><td>${formatAdminDate(report.created_at?.slice(0, 10))}</td><td>${escapeHtml(report.status)}</td><td><button class="table-button" type="button" data-report-action="resolved" data-report-id="${report.id}">Atrisināts</button> <button class="table-button table-button-danger" type="button" data-report-action="dismissed" data-report-id="${report.id}">Noraidīt</button></td></tr>
+    `);
 
     for (const [list, result, columns] of [[userList, usersResult, 6], [eventList, eventsResult, 6], [applicationList, applicationsResult, 5], [reportList, { error: reportsError }, 6]]) {
         if (list && result.error) list.innerHTML = adminEmptyRow(columns, `Datus neizdevās ielādēt: ${result.error.message}`);

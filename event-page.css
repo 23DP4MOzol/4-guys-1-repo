@@ -17,6 +17,7 @@ body.event-detail-page .event-hero {
     color: #fff;
     display: grid;
     gap: 1.7rem;
+    justify-items: center;
     min-height: clamp(22rem, 34vw, 31rem);
     overflow: hidden;
     padding: clamp(3.25rem, 7vw, 6.75rem) max(1.5rem, calc((100vw - 1320px) / 2));
@@ -40,6 +41,11 @@ body.event-detail-page .event-detail-grid {
     z-index: 1;
 }
 
+body.event-detail-page .event-hero-copy > p,
+body.event-detail-page .event-hero-copy > h1 {
+    text-align: center;
+}
+
 body.event-detail-page .event-hero-copy,
 body.event-detail-page .event-facts {
     justify-self: center;
@@ -58,7 +64,7 @@ body.event-detail-page .event-hero-copy > p:last-child {
     color: #d8e0ff;
     font-size: clamp(1rem, 1.3vw, 1.14rem);
     line-height: 1.7;
-    margin: 0;
+    margin: 0 auto;
     max-width: 46rem;
 }
 
@@ -80,6 +86,7 @@ body.event-detail-page .event-facts span {
     color: #f4f6ff;
     font-size: 0.86rem;
     padding: 0.58rem 0.85rem;
+    text-align: center;
 }
 
 /* site.js currently returns the description once inside this grid too.
@@ -87,6 +94,7 @@ body.event-detail-page .event-facts span {
 body.event-detail-page .event-detail-grid {
     display: block;
     margin: 0;
+    text-align: center;
 }
 
 body.event-detail-page .event-detail-grid > .event-detail-block:not(.event-detail-roles) {
