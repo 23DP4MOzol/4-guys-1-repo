@@ -12,3 +12,13 @@
 .admin-form-message { width: min(1100px, 94vw); margin: 1rem auto; color: var(--text-main); }
 .admin-form-message.form-error { color: #b42318; }
 .admin-table-section td:last-child .table-button { margin: .2rem; }
+.admin-page { --border-color: #c7cfdf; }
+.admin-page .table-wrap, .admin-page .stat-card, .admin-page .card { box-shadow: 0 8px 24px rgba(23, 34, 75, .045); }
+.admin-page.dark-mode { --border-color: #425584; }
+.admin-page.dark-mode .card,
+.admin-page.dark-mode .stat-card,
+.admin-page.dark-mode .table-wrap,
+.admin-page.dark-mode .admin-table-tools input,
+.admin-page.dark-mode .audit-dialog,
+.admin-page.dark-mode .ban-dialog,
+.admin-page.dark-mode .ban-dialog select { border-color: #425584; }

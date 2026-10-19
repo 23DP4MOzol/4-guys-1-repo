@@ -63,6 +63,7 @@ async function getCurrentUser() {
             .select('id, full_name, role, is_banned, banned_until')
             .eq('id', user.id)
             .single();
+        if (fallback.error) return { ...user, profile: null };
         profile = fallback.data;
     }
 
@@ -163,6 +164,7 @@ function updateAuthLinks(currentUser) {
     const displayName = currentUser.profile?.full_name || currentUser.email.split('@')[0];
     authButtons.innerHTML = `
         <a class="user-profile" href="profile.html" aria-label="Atvērt profilu">${profileAvatarMarkup(currentUser.profile, 'user-avatar', displayName)}<span class="user-greeting">Sveiks, ${escapeHtml(displayName)}</span></a>
+        ${isAdmin ? '<a class="btn-login admin-shortcut" href="admin.html" aria-label="Atvērt admin paneli" title="Admin panelis">🔧</a>' : ''}
         <button class="btn-login logout-button" type="button">Iziet</button>
     `;
 

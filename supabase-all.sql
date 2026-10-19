@@ -186,6 +186,8 @@ begin
         raise exception 'You cannot remove your own administrator role';
     end if;
     update public.profiles set role = target_role where id = target_user_id;
+    insert into public.audit_logs(actor_id, action, entity_type, entity_id, details)
+    values (auth.uid(), 'admin_set_role', 'profiles', target_user_id, jsonb_build_object('role_to', target_role));
 end;
 $$;
 
@@ -216,6 +218,9 @@ begin
     update auth.users
     set banned_until = case when should_ban then coalesce(now() + make_interval(hours => ban_hours), 'infinity'::timestamptz) else null end
     where id = target_user_id;
+    insert into public.audit_logs(actor_id, action, entity_type, entity_id, details)
+    values (auth.uid(), case when should_ban then 'admin_ban' else 'admin_unban' end, 'profiles', target_user_id,
+        jsonb_build_object('is_banned', should_ban));
 end;
 $$;
 

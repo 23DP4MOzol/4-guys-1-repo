@@ -8,7 +8,7 @@
     <link rel="stylesheet" href="events.css">
     <link rel="stylesheet" href="admin.css">
 </head>
-<body data-auth-required="true" data-role-required="admin">
+<body class="admin-page" data-auth-required="true" data-role-required="admin">
     <header>
         <nav class="navbar">
             <a class="logo" href="index.html" aria-label="Voluntio sākumlapa">Voluntio</a>
@@ -17,7 +17,6 @@
                 <li><a href="pasakumi.html">Pasākumi</a></li>
                 <li><a href="create-event.html">Izveidot pasākumu</a></li>
                 <li><a href="pieteikties.html">Pieteikties</a></li>
-                <li><a href="admin.html" class="active">Admin panelis</a></li>
             </ul>
             <div class="auth-buttons">
                 <a href="login.html" class="btn-login">Pieteikties</a>
@@ -106,6 +105,16 @@
                 <table>
                     <thead><tr><th>Pasākums</th><th>Organizators</th><th>Pieteikušies</th><th>Statuss</th><th>Datums</th><th>Moderēšana</th></tr></thead>
                     <tbody data-admin-events></tbody>
+                </table>
+            </div>
+        </section>
+
+        <section class="admin-section admin-table-section" data-audit-overview>
+            <div class="section-heading"><div><h2>Jaunākās darbības</h2><p>Administrācijas darbību un lietotāju aktivitāšu pārskats.</p></div><span class="table-count" data-audit-overview-count>0 ieraksti</span></div>
+            <div class="table-wrap">
+                <table>
+                    <thead><tr><th>Datums un laiks</th><th>Lietotājs</th><th>Darbība</th><th>Objekts</th><th>Izmaiņas</th></tr></thead>
+                    <tbody data-audit-overview-list></tbody>
                 </table>
             </div>
         </section>

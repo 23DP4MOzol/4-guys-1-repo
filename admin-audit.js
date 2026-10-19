@@ -8,6 +8,8 @@ function setupAdminAudit() {
     const titles = { events: 'Pasākums', event_applications: 'Pieteikums', event_messages: 'Čata ziņa', profiles: 'Profils', reports: 'Ziņojums', event_participant: 'Dalībnieks', audit: 'Audita žurnāls' };
     const actions = { INSERT: 'Izveidoja', UPDATE: 'Mainīja', DELETE: 'Dzēsa', event_participant_mute: 'Apklusināja dalībnieku', event_participant_unmute: 'Atļāva rakstīt čatā', event_participant_kick: 'Noņēma dalībnieku', cleared_user_audit: 'Notīrīja lietotāja žurnālu' };
     const fieldLabels = { title: 'nosaukumu', status: 'statusu', event_date: 'datumu', location: 'atrašanās vietu', description: 'aprakstu', role: 'lomu', is_banned: 'bloķēšanas statusu', banned_until: 'bloķēšanas termiņu', priority: 'prioritāti' };
+    const overviewList = document.querySelector('[data-audit-overview-list]');
+    const overviewCount = document.querySelector('[data-audit-overview-count]');
     const formatDetails = details => {
         if (!details || typeof details !== 'object') return 'Darbība veikta.';
         const parts = [];
@@ -21,6 +23,22 @@ function setupAdminAudit() {
         if (details.reason) parts.push(`Iemesls: ${details.reason}`);
         return parts.join(' · ') || 'Darbība veikta.';
     };
+    const renderOverview = async () => {
+        if (!overviewList) return;
+        const { data, error } = await supabaseClient.from('audit_logs').select('id, actor_id, action, entity_type, details, created_at')
+            .order('created_at', { ascending: false }).order('id', { ascending: false }).range(0, 49);
+        if (error) {
+            overviewList.innerHTML = `<tr><td colspan="5">${escapeHtml(`Žurnālu neizdevās ielādēt: ${error.message}`)}</td></tr>`;
+            return;
+        }
+        const logs = data || [];
+        overviewCount.textContent = `${logs.length} ieraksti`;
+        overviewList.innerHTML = logs.length ? logs.map(log => `<tr><td>${escapeHtml(new Date(log.created_at).toLocaleString('lv-LV', { timeZone: 'Europe/Riga' }))}</td>
+            <td title="${escapeHtml(log.actor_id || '')}">${escapeHtml(log.actor_id ? `${log.actor_id.slice(0, 8)}...` : 'Sistēma')}</td>
+            <td>${escapeHtml(actions[log.action] || log.action || 'Mainīja datus')}</td><td>${escapeHtml(titles[log.entity_type] || log.entity_type || 'Sistēmas objekts')}</td>
+            <td>${escapeHtml(formatDetails(log.details))}</td></tr>`).join('') : '<tr><td colspan="5">Darbību nav.</td></tr>';
+    };
+    renderOverview().catch(error => { if (overviewList) overviewList.innerHTML = `<tr><td colspan="5">${escapeHtml(error.message)}</td></tr>`; });
     let selectedUser;
     let offset = 0;
     let generation = 0;

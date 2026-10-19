@@ -131,6 +131,9 @@ begin
     if not found then
         raise exception 'User not found';
     end if;
+    insert into public.audit_logs(actor_id, action, entity_type, entity_id, details)
+    values (auth.uid(), 'admin_set_role', 'profiles', target_user_id,
+        jsonb_build_object('role_to', target_role));
 end;
 $$;
 
@@ -181,6 +184,9 @@ begin
     update auth.users
     set banned_until = ban_expiry
     where id = target_user_id;
+    insert into public.audit_logs(actor_id, action, entity_type, entity_id, details)
+    values (auth.uid(), case when should_ban then 'admin_ban' else 'admin_unban' end, 'profiles', target_user_id,
+        jsonb_build_object('is_banned', should_ban, 'banned_until', ban_expiry));
 end;
 $$;
 
