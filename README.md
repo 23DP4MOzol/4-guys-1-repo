@@ -59,7 +59,7 @@ uzstādīšanas un palaišanas instrukcija (soon to change)
 
 ### Supabase migrācijas
 
-Pēc `supabase-all.sql` un pārējo esošo migrāciju palaišanas palaid `supabase-achievements.sql`. Tā pievieno pasākuma stundu skaitu, organizatora pabeigšanas pieprasījumu, administratora pārbaudi, pārbaudītās brīvprātīgā darba stundas un sasniegumu nozīmītes. Stundas tiek piešķirtas tikai administratora apstiprinātam pasākumam un tikai apstiprinātajiem dalībniekiem.
+Pēc `supabase-all.sql` un pārējo esošo migrāciju palaišanas palaid `supabase-achievements.sql`. Tā pievieno pasākuma sākuma/beigu laiku, automātiski aprēķinātas darba stundas, organizatora pabeigšanas pieprasījumu, administratora pārbaudi, pārbaudītās brīvprātīgā darba stundas un sasniegumu nozīmītes. Stundas tiek piešķirtas tikai administratora apstiprinātam pasākumam un tikai apstiprinātajiem dalībniekiem. Organizators pasākumam, kas paredzēts šodien, var izmantot piespiedu sākšanu; tad ilgums tiek skaitīts no faktiskā sākuma laika.
 
 ## Komandas dalībnieki:
 

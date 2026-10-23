@@ -6,6 +6,19 @@ function eventToday() {
     return `${part('year')}-${part('month')}-${part('day')}`;
 }
 
+function eventNowInRiga() {
+    const parts = new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/Riga', hour: '2-digit', minute: '2-digit', hour12: false }).formatToParts(new Date());
+    return `${parts.find((item) => item.type === 'hour').value}:${parts.find((item) => item.type === 'minute').value}`;
+}
+
+function eventIsFinished(event) {
+    if (event?.event_started_at) {
+        return Date.now() >= new Date(event.event_started_at).getTime() + Number(event.volunteer_hours || 0) * 60 * 60 * 1000;
+    }
+    const today = eventToday();
+    return event?.event_date < today || (event?.event_date === today && String(event.event_end_time || '23:59').slice(0, 5) <= eventNowInRiga());
+}
+
 function eventDateLimit(today = eventToday()) {
     const date = new Date(`${today}T12:00:00Z`);
     const month = date.getUTCMonth();
@@ -273,12 +286,13 @@ function setupEventForm() {
         capacity: Number(row.querySelector('[name="role-count"]').value)
     }));
     if (editId) {
-        supabaseClient.from('events').select('title, category, event_date, location, latitude, longitude, volunteer_roles, volunteer_role_requirements, volunteer_hours, description, whitelist_volunteers, event_images(storage_path, original_storage_path, sort_order)').eq('id', editId).single().then(({ data, error }) => {
+        supabaseClient.from('events').select('title, category, event_date, event_start_time, event_end_time, location, latitude, longitude, volunteer_roles, volunteer_role_requirements, volunteer_hours, description, whitelist_volunteers, event_images(storage_path, original_storage_path, sort_order)').eq('id', editId).single().then(({ data, error }) => {
             if (error || !data) throw error || new Error('Pasākums nav atrasts.');
             form.elements.title.value = data.title;
             form.elements.category.value = data.category;
             form.elements.date.value = data.event_date;
-            form.elements.volunteerHours.value = data.volunteer_hours || 1;
+            form.elements.startTime.value = String(data.event_start_time || '09:00').slice(0, 5);
+            form.elements.endTime.value = String(data.event_end_time || '10:00').slice(0, 5);
             form.elements.location.value = data.location;
             form.elements.latitude.value = data.latitude ?? '';
             form.elements.longitude.value = data.longitude ?? '';
@@ -349,7 +363,13 @@ function setupEventForm() {
             const longitude = Number(form.elements.longitude.value);
             const location = form.elements.location.value.trim();
             const description = form.elements.description.value.trim();
-            const volunteerHours = Number(form.elements.volunteerHours.value);
+            const startTime = form.elements.startTime.value;
+            const endTime = form.elements.endTime.value;
+            const timeToMinutes = (value) => {
+                const [hours, minutes] = value.split(':').map(Number);
+                return hours * 60 + minutes;
+            };
+            const durationMinutes = timeToMinutes(endTime) - timeToMinutes(startTime);
             if (!form.elements.latitude.value.trim() || !form.elements.longitude.value.trim() ||
                 !Number.isFinite(latitude) || !Number.isFinite(longitude) || Math.abs(latitude) > 90 || Math.abs(longitude) > 180) {
                 showFormMessage('Izvēlies vietu no kartes vai meklēšanas rezultātiem, lai saglabātu pasākumu.', true);
@@ -360,9 +380,9 @@ function setupEventForm() {
                 showFormMessage('Aizpildi pasākuma vietu un aprakstu, lai turpinātu.', true);
                 return;
             }
-            if (!Number.isFinite(volunteerHours) || volunteerHours <= 0 || volunteerHours > 24) {
-                showFormMessage('Norādi darba stundas no 0,5 līdz 24.', true);
-                form.elements.volunteerHours.focus();
+            if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(startTime) || !/^([01]\d|2[0-3]):[0-5]\d$/.test(endTime) || durationMinutes <= 0) {
+                showFormMessage('Norādi sākuma un beigu laiku no 00:00 līdz 23:00. Beigu laikam jābūt vēlākam par sākuma laiku.', true);
+                form.elements.startTime.focus();
                 return;
             }
             if (!roleRequirements.length || roleRequirements.some((role) => !role.name || !Number.isInteger(role.capacity) || role.capacity < 1)) {
@@ -376,6 +396,8 @@ function setupEventForm() {
                 title,
                 category: form.elements.category.value,
                 event_date: form.elements.date.value,
+                event_start_time: startTime,
+                event_end_time: endTime,
                 location,
                 latitude,
                 longitude,
@@ -383,7 +405,7 @@ function setupEventForm() {
                 volunteer_role_requirements: roleRequirements,
                 description,
                 whitelist_volunteers: form.elements.whitelist.checked,
-                volunteer_hours: volunteerHours,
+                volunteer_hours: Number((durationMinutes / 60).toFixed(2)),
                 status: 'pending'
             };
             showFormMessage('Saglabā pasākumu un attēlus...');
@@ -636,7 +658,7 @@ function setupEventDetail() {
     const joinForm = document.querySelector('[data-detail-application]');
     let currentUser;
     const load = async () => {
-        const result = await supabaseClient.from('events').select('id, title, category, event_date, location, latitude, longitude, description, volunteer_roles, volunteer_role_requirements, volunteer_hours, creator_id, status, event_images(storage_path, original_storage_path, sort_order), profiles!events_creator_id_fkey(full_name, avatar_path)').eq('id', eventId).single();
+        const result = await supabaseClient.from('events').select('id, title, category, event_date, event_start_time, event_end_time, event_started_at, location, latitude, longitude, description, volunteer_roles, volunteer_role_requirements, volunteer_hours, creator_id, status, event_images(storage_path, original_storage_path, sort_order), profiles!events_creator_id_fkey(full_name, avatar_path)').eq('id', eventId).single();
         if (result.error) { detail.innerHTML = `<h1>Pasākums nav atrasts</h1><p>${escapeHtml(result.error.message)}</p>`; return; }
         const event = result.data;
         if (event.status === 'archived') {
@@ -648,7 +670,7 @@ function setupEventDetail() {
         }
         const { data: availability } = await supabaseClient.rpc('event_role_availability', { target_event_id: event.id });
         const roles = (availability || eventRoles(event)).map((role) => ({ name: role.role_name || role.name, capacity: Number(role.capacity), filled: Number(role.filled || 0) }));
-        detail.innerHTML = `<div class="event-hero-copy"><p class="eyebrow">${escapeHtml(event.category)}</p><h1>${escapeHtml(event.title)}</h1><p>${escapeHtml(event.description)}</p></div><div class="event-facts"><span>📅 ${escapeHtml(event.event_date)}</span><span>📍 ${escapeHtml(event.location)}</span><span>⏱️ ${escapeHtml(event.volunteer_hours || 1)} stundas vienam dalībniekam</span><span>👥 ${roles.reduce((total, role) => total + role.filled, 0)} / ${roles.reduce((total, role) => total + role.capacity, 0)} brīvprātīgie</span></div><div class="event-detail-grid"><div class="event-detail-block event-detail-roles"><span class="detail-label">Nepieciešamās lomas</span><div class="role-capacity-list">${roles.map((role) => `<span>${escapeHtml(role.name)} <strong>(${role.filled}/${role.capacity})</strong></span>`).join('') || '<span>Lomas nav norādītas.</span>'}</div></div></div>`;
+        detail.innerHTML = `<div class="event-hero-copy"><p class="eyebrow">${escapeHtml(event.category)}</p><h1>${escapeHtml(event.title)}</h1><p>${escapeHtml(event.description)}</p></div><div class="event-facts"><span>📅 ${escapeHtml(event.event_date)}</span><span>🕒 ${escapeHtml(String(event.event_start_time || '09:00').slice(0, 5))}–${escapeHtml(String(event.event_end_time || '10:00').slice(0, 5))}</span><span>📍 ${escapeHtml(event.location)}</span><span>⏱️ ${escapeHtml(Number(event.volunteer_hours || 1).toLocaleString('lv-LV'))} stundas vienam dalībniekam</span><span>👥 ${roles.reduce((total, role) => total + role.filled, 0)} / ${roles.reduce((total, role) => total + role.capacity, 0)} brīvprātīgie</span></div><div class="event-detail-grid"><div class="event-detail-block event-detail-roles"><span class="detail-label">Nepieciešamās lomas</span><div class="role-capacity-list">${roles.map((role) => `<span>${escapeHtml(role.name)} <strong>(${role.filled}/${role.capacity})</strong></span>`).join('') || '<span>Lomas nav norādītas.</span>'}</div></div></div>`;
         detail.dataset.creatorId = event.creator_id;
         const images = sortedEventImages(event);
         if (images.length) detail.insertAdjacentHTML('beforeend', `<div class="event-image-gallery" data-image-gallery>${images.map((image, index) => {
@@ -689,12 +711,13 @@ function setupEventDetail() {
                 const { data, error } = await supabaseClient.from('event_applications').select('id, volunteer_id, requested_role, status, message, profiles(full_name, avatar_path)').eq('event_id', event.id).order('created_at');
                 if (error) { organizerMessage(`Pieteikumus neizdevās ielādēt: ${error.message}`, true); return; }
                 const mutedParticipants = new Set(participants.filter((participant) => participant.is_muted).map((participant) => participant.id));
-                const completionAction = event.event_date < eventToday()
+                const completionAction = eventIsFinished(event)
                     ? completion?.status === 'approved' ? '<span class="completion-confirmed">Pabeigšana pārbaudīta — stundas piešķirtas.</span>'
                         : completion?.status === 'pending' ? '<span class="completion-pending">Pabeigšana gaida administratora pārbaudi.</span>'
                         : `<button class="table-button" type="button" data-request-completion>${completion?.status === 'rejected' ? 'Iesniegt atkārtoti pārbaudei' : 'Atzīmēt kā pabeigtu'}</button>`
                     : '';
-                applications.innerHTML = `<div class="organizer-event-actions"><a class="btn-card" href="create-event.html?edit=${encodeURIComponent(event.id)}">Rediģēt pasākumu</a>${completionAction}<button class="table-button table-button-danger" type="button" data-cancel-event>Atcelt pasākumu</button></div>
+                const startAction = event.status === 'approved' && event.event_date === eventToday() && !event.event_started_at ? '<button class="table-button" type="button" data-start-event>Sākt pasākumu tagad</button>' : event.event_started_at ? '<span class="completion-confirmed">Pasākums ir sākts.</span>' : '';
+                applications.innerHTML = `<div class="organizer-event-actions"><a class="btn-card" href="create-event.html?edit=${encodeURIComponent(event.id)}">Rediģēt pasākumu</a>${startAction}${completionAction}<button class="table-button table-button-danger" type="button" data-cancel-event>Atcelt pasākumu</button></div>
                     <div class="table-wrap"><table class="organizer-table"><thead><tr><th>Vārds</th><th>Loma</th><th>Statuss</th><th>Ziņa</th><th>Darbības</th></tr></thead><tbody>
                     ${(data || []).map(application => `<tr><td><div class="event-person-with-copy">${profileAvatarMarkup(application.profiles, 'event-person-avatar', application.profiles?.full_name)}<strong>${escapeHtml(application.profiles?.full_name || 'Lietotājs')}</strong></div></td>
                     <td>${escapeHtml(application.requested_role || 'Nav norādīta')}</td><td><span class="status status-${application.status}">${applicationStatusLabel(application.status)}</span>${mutedParticipants.has(application.volunteer_id) ? '<small>Nevar rakstīt pasākuma čatā</small>' : ''}</td>
@@ -727,6 +750,14 @@ function setupEventDetail() {
                     organizerMessage('Pabeigšana nosūtīta administratora pārbaudei.');
                     await loadApplications();
                 });
+                applications.querySelector('[data-start-event]')?.addEventListener('click', async (startEvent) => {
+                    startEvent.currentTarget.disabled = true;
+                    const { error } = await supabaseClient.rpc('organizer_start_event', { target_event_id: event.id });
+                    if (error) { startEvent.currentTarget.disabled = false; organizerMessage(error.message, true); return; }
+                    event.event_started_at = new Date().toISOString();
+                    organizerMessage('Pasākums sākts. Tā beigu laiks un darba stundas tiek skaitīti no šī brīža.');
+                    await loadApplications();
+                });
             };
             await loadApplications();
         }
@@ -746,7 +777,7 @@ function setupEventDetail() {
                 joinForm.querySelector('button[type="submit"]').disabled = true;
             }
         }
-        if (event.event_date < eventToday() && joinForm?.isConnected) {
+        if (eventIsFinished(event) && joinForm?.isConnected) {
             showFormMessage('Pasākums ir beidzies. Pieteikšanās ir slēgta.');
             joinForm.querySelector('button[type="submit"]').disabled = true;
         }
@@ -1317,7 +1348,7 @@ async function renderCustomEvents() {
     try {
         const { data, error } = await supabaseClient
             .from('events')
-            .select('id, title, category, event_date, location, description, volunteer_roles, status, event_images(storage_path, sort_order)')
+            .select('id, title, category, event_date, event_start_time, event_end_time, location, description, volunteer_roles, status, event_images(storage_path, sort_order)')
             .eq('status', 'approved')
             .order('event_date', { ascending: true });
 
@@ -1349,6 +1380,7 @@ async function renderCustomEvents() {
             <p class="card-desc">${escapeHtml(event.description)}</p>
             <div class="card-meta">
                 <span>📅 ${escapeHtml(event.event_date)}</span>
+                <span>🕒 ${escapeHtml(String(event.event_start_time || '09:00').slice(0, 5))}–${escapeHtml(String(event.event_end_time || '10:00').slice(0, 5))}</span>
                 <span>📍 ${escapeHtml(event.location)}</span>
             </div>
             ${event.volunteer_roles ? `<p class="event-roles"><strong>Lomas:</strong> ${escapeHtml(event.volunteer_roles)}</p>` : ''}

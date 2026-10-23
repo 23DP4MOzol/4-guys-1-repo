@@ -48,9 +48,12 @@
                 <input id="date" name="date" type="date" required>
                 <p class="field-help" data-date-hint>Izvēlies datumu no šodienas līdz 10 gadiem nākotnē.</p>
 
-                <label for="volunteer-hours">Darba stundas vienam dalībniekam</label>
-                <input id="volunteer-hours" name="volunteerHours" type="number" min="0.5" max="24" step="0.5" value="1" required>
-                <p class="field-help">Šīs stundas tiks piešķirtas tikai pēc administratora pārbaudes.</p>
+                <label for="event-start-time">Pasākuma sākuma laiks</label>
+                <input id="event-start-time" name="startTime" type="time" min="00:00" max="23:00" value="09:00" required>
+
+                <label for="event-end-time">Pasākuma beigu laiks</label>
+                <input id="event-end-time" name="endTime" type="time" min="00:00" max="23:00" value="10:00" required>
+                <p class="field-help">Darba stundas tiks aprēķinātas automātiski un piešķirtas tikai pēc administratora pārbaudes.</p>
 
                 <label for="location">Norises vieta</label>
                 <input id="location" name="location" type="search" autocomplete="street-address" placeholder="Sāc rakstīt adresi vai vietu Latvijā" required data-location-search>

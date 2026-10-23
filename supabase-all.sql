@@ -53,6 +53,9 @@ create table if not exists public.events (
     title text not null check (char_length(title) between 3 and 120),
     category text not null,
     event_date date not null,
+    event_start_time time not null default '09:00',
+    event_end_time time not null default '10:00',
+    event_started_at timestamptz,
     location text not null,
     latitude double precision,
     longitude double precision,
@@ -70,6 +73,11 @@ alter table public.events add column if not exists whitelist_volunteers boolean 
 alter table public.events add column if not exists volunteer_role_requirements jsonb not null default '[]'::jsonb;
 alter table public.events add column if not exists latitude double precision;
 alter table public.events add column if not exists longitude double precision;
+alter table public.events add column if not exists event_start_time time not null default '09:00';
+alter table public.events add column if not exists event_end_time time not null default '10:00';
+alter table public.events add column if not exists event_started_at timestamptz;
+alter table public.events drop constraint if exists events_schedule_check;
+alter table public.events add constraint events_schedule_check check (event_start_time between '00:00'::time and '23:00'::time and event_end_time between '00:00'::time and '23:00'::time and event_end_time > event_start_time);
 alter table public.events add column if not exists volunteer_hours numeric(5,2) not null default 1;
 alter table public.events drop constraint if exists events_volunteer_hours_check;
 alter table public.events add constraint events_volunteer_hours_check check (volunteer_hours > 0 and volunteer_hours <= 24);
@@ -816,6 +824,11 @@ begin
         not (latitude_value between -90 and 90) or not (longitude_value between -180 and 180) then
         raise exception 'Choose a location from the map or search results before saving';
     end if;
+    if (event_data->>'event_start_time')::time >= (event_data->>'event_end_time')::time or
+        (event_data->>'event_start_time')::time > '23:00'::time or
+        (event_data->>'event_end_time')::time > '23:00'::time then
+        raise exception 'Event end time must be later than its start time and no later than 23:00';
+    end if;
     if roles is null or jsonb_typeof(roles) <> 'array' then
         raise exception 'Volunteer roles must be an array';
     end if;
@@ -849,13 +862,15 @@ begin
         raise exception 'Upload each image to your own storage before saving';
     end if;
 
-    insert into public.events (id, creator_id, title, category, event_date, location,
+    insert into public.events (id, creator_id, title, category, event_date, event_start_time, event_end_time, location,
         latitude, longitude, volunteer_roles, volunteer_role_requirements, description, whitelist_volunteers, volunteer_hours, status)
     values (target_event_id, actor, trim(event_data->>'title'), event_data->>'category',
-        (event_data->>'event_date')::date, trim(event_data->>'location'),
+        (event_data->>'event_date')::date, coalesce((event_data->>'event_start_time')::time, '09:00'::time), coalesce((event_data->>'event_end_time')::time, '10:00'::time), trim(event_data->>'location'),
         latitude_value, longitude_value,
         event_data->>'volunteer_roles', roles, trim(event_data->>'description'),
-        coalesce((event_data->>'whitelist_volunteers')::boolean, false), coalesce((event_data->>'volunteer_hours')::numeric, 1), 'pending')
+        coalesce((event_data->>'whitelist_volunteers')::boolean, false),
+        extract(epoch from ((event_data->>'event_end_time')::time - (event_data->>'event_start_time')::time)) / 3600,
+        'pending')
     on conflict (id) do update set
         title = excluded.title, category = excluded.category, event_date = excluded.event_date,
         location = excluded.location, latitude = excluded.latitude, longitude = excluded.longitude,
@@ -904,6 +919,37 @@ alter table public.event_participant_moderation enable row level security;
 create or replace function public.event_today()
 returns date language sql stable set search_path = public
 as $$ select (now() at time zone 'Europe/Riga')::date $$;
+
+create or replace function public.organizer_start_event(target_event_id uuid)
+returns timestamptz
+language plpgsql security definer set search_path = public
+as $$
+declare event_record public.events%rowtype; started timestamptz;
+begin
+    select * into event_record from public.events where id = target_event_id for update;
+    if not found or event_record.creator_id is distinct from auth.uid() then
+        raise exception 'Tikai pasākuma organizators var sākt pasākumu';
+    end if;
+    if event_record.status <> 'approved'::public.event_status or event_record.event_date <> public.event_today() then
+        raise exception 'Pasākumu var piespiedu kārtā sākt tikai šodien';
+    end if;
+    started := coalesce(event_record.event_started_at, now());
+    update public.events set event_started_at = started where id = target_event_id;
+    return started;
+end;
+$$;
+revoke all on function public.organizer_start_event(uuid) from public, anon;
+grant execute on function public.organizer_start_event(uuid) to authenticated;
+
+create or replace function public.event_is_finished(target_event_id uuid)
+returns boolean language sql stable set search_path = public
+as $$
+select exists (
+        select 1 from public.events event_record
+        where event_record.id = target_event_id
+            and ((event_record.event_started_at is not null and event_record.event_started_at + make_interval(mins => round(event_record.volunteer_hours * 60)::integer) <= now())
+                or ((event_record.event_date + event_record.event_end_time) at time zone 'Europe/Riga') <= now())
+) $$;
 
 create or replace function public.organizer_set_participant_state(event_id uuid, participant_id uuid, action text)
 returns void
@@ -1332,7 +1378,7 @@ declare event_record public.events%rowtype; completion_record public.event_compl
 begin
     select * into event_record from public.events where id = target_event_id for update;
     if not found or event_record.creator_id is distinct from auth.uid() then raise exception 'Tikai pasākuma organizators var pieteikt noslēgšanu'; end if;
-    if event_record.status <> 'approved'::public.event_status or event_record.event_date >= (now() at time zone 'Europe/Riga')::date then raise exception 'Pasākumu var noslēgt tikai pēc apstiprināta pasākuma norises'; end if;
+    if event_record.status <> 'approved'::public.event_status or not public.event_is_finished(target_event_id) then raise exception 'Pasākumu var noslēgt tikai pēc apstiprināta pasākuma norises'; end if;
     insert into public.event_completions(event_id, requested_by, status, reviewed_by, reviewed_at, notes)
     values(target_event_id, auth.uid(), 'pending', null, null, null)
     on conflict(event_id) do update set requested_by=excluded.requested_by, requested_at=now(), reviewed_by=null, reviewed_at=null, status='pending', notes=null
@@ -1349,7 +1395,7 @@ begin
     select * into completion_record from public.event_completions where id=target_completion_id for update;
     if not found then raise exception 'Noslēgšanas pieprasījums nav atrasts'; end if;
     select * into event_record from public.events where id=completion_record.event_id for update;
-    if event_record.status <> 'approved'::public.event_status or event_record.event_date >= (now() at time zone 'Europe/Riga')::date then raise exception 'Pasākums vēl nav gatavs pārbaudei'; end if;
+    if event_record.status <> 'approved'::public.event_status or not public.event_is_finished(completion_record.event_id) then raise exception 'Pasākums vēl nav gatavs pārbaudei'; end if;
     update public.event_completions set status=decision, reviewed_by=auth.uid(), reviewed_at=now(), notes=nullif(btrim(review_notes), '') where id=target_completion_id;
     if decision = 'approved'::public.completion_status then
         insert into public.volunteer_hours(event_id, volunteer_id, hours, completion_id)
