@@ -16,6 +16,7 @@ body.event-detail-page .event-hero {
         #172a64;
     color: #fff;
     display: grid;
+    grid-template-columns: minmax(0, 1fr);
     gap: 1.7rem;
     justify-items: center;
     min-height: clamp(22rem, 34vw, 31rem);
@@ -35,6 +36,7 @@ body.event-detail-page .event-hero::after {
 body.event-detail-page .event-hero-copy,
 body.event-detail-page .event-facts,
 body.event-detail-page .event-detail-grid {
+    min-width: 0;
     max-width: 54rem;
     position: relative;
     text-align: center;
@@ -53,6 +55,7 @@ body.event-detail-page .event-facts {
 }
 
 body.event-detail-page .event-hero h1 {
+    overflow-wrap: anywhere;
     color: #fff;
     font-size: clamp(3rem, 6vw, 5.75rem);
     letter-spacing: -0.065em;

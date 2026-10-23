@@ -6,6 +6,18 @@ function eventToday() {
     return `${part('year')}-${part('month')}-${part('day')}`;
 }
 
+function eventDateLimit(today = eventToday()) {
+    const date = new Date(`${today}T12:00:00Z`);
+    const month = date.getUTCMonth();
+    date.setUTCFullYear(date.getUTCFullYear() + 10);
+    if (date.getUTCMonth() !== month) date.setUTCDate(0);
+    return date.toISOString().slice(0, 10);
+}
+
+function validEventDate(value, today = eventToday()) {
+    return /^\d{4}-\d{2}-\d{2}$/.test(value) && value >= today && value <= eventDateLimit(today);
+}
+
 function applicationStatusMessage(status) {
     return status === 'approved' ? 'Tu jau esi pievienojies šim pasākumam. Tavs pieteikums ir apstiprināts.'
         : status === 'rejected' ? 'Tavs iepriekšējais pieteikums ir noraidīts vai dalība pārtraukta. Sazinies ar organizatoru.'
@@ -156,6 +168,7 @@ function updateAuthLinks(currentUser) {
     });
 
     navbar?.classList.toggle('has-auth-user', Boolean(currentUser));
+    setupNotifications(currentUser);
 
     if (!authButtons || !currentUser) {
         return;
@@ -231,6 +244,7 @@ function setupEventForm() {
     const dateField = form.elements.date;
     const localToday = eventToday();
     dateField.min = localToday;
+    dateField.max = eventDateLimit(localToday);
     if (!editId) {
         dateField.value = localToday;
         dateField.classList.add('date-suggested');
@@ -238,7 +252,8 @@ function setupEventForm() {
     dateField.addEventListener('input', () => {
         dateField.classList.remove('date-suggested');
         dateField.min = eventToday();
-        dateField.setCustomValidity(dateField.value && dateField.value < dateField.min ? 'Izvēlies šodienu vai vēlāku datumu.' : '');
+        dateField.max = eventDateLimit(dateField.min);
+        dateField.setCustomValidity(dateField.value && !validEventDate(dateField.value, dateField.min) ? 'Izvēlies datumu no šodienas līdz 10 gadiem nākotnē.' : '');
     });
 
     const roleBuilder = form.querySelector('[data-role-builder]');
@@ -322,8 +337,9 @@ function setupEventForm() {
                 return;
             }
             dateField.min = eventToday();
-            if (!dateField.value || dateField.value < dateField.min) {
-                showFormMessage('Pasākuma datumam jābūt šodien vai nākotnē.', true);
+            dateField.max = eventDateLimit(dateField.min);
+            if (!validEventDate(dateField.value, dateField.min)) {
+                showFormMessage('Pasākuma datumam jābūt no šodienas līdz 10 gadiem nākotnē.', true);
                 dateField.focus();
                 return;
             }
@@ -773,6 +789,135 @@ function escapeHtml(value) {
     }[character]));
 }
 
+function showEventRejectionDialog(title, onSubmit) {
+    return new Promise(resolve => {
+        const dialog = document.createElement('dialog');
+        dialog.className = 'event-review-dialog';
+        dialog.setAttribute('aria-labelledby', 'event-review-title');
+        dialog.innerHTML = `<form data-event-rejection-form>
+            <h2 id="event-review-title">Noraidīt pasākumu</h2><p>${escapeHtml(title)}</p>
+            <label for="event-rejection-reason">Noraidīšanas iemesls</label>
+            <textarea id="event-rejection-reason" name="reason" rows="5" minlength="3" maxlength="2000" placeholder="Paskaidro, kas jāmaina, lai pasākumu varētu apstiprināt." required autofocus></textarea>
+            <p>Organizators saņems paziņojumu ar šo iemeslu.</p><p data-rejection-status role="status"></p>
+            <div class="review-actions"><button class="table-button" type="button" data-rejection-cancel>Atcelt</button><button class="table-button table-button-danger" type="submit">Noraidīt un paziņot</button></div>
+            </form>`;
+        document.body.append(dialog);
+        let busy = false, saved = false;
+        dialog.querySelector('[data-rejection-cancel]').addEventListener('click', () => dialog.close());
+        dialog.addEventListener('cancel', event => { if (busy) event.preventDefault(); });
+        dialog.addEventListener('close', () => { dialog.remove(); resolve(saved); }, { once: true });
+        dialog.querySelector('form').addEventListener('submit', async event => {
+            event.preventDefault();
+            if (busy) return;
+            const form = event.currentTarget;
+            const reason = form.elements.reason.value.trim();
+            const status = form.querySelector('[data-rejection-status]');
+            if (reason.length < 3) { status.textContent = 'Norādi iemeslu vismaz 3 rakstzīmēs.'; return; }
+            busy = true;
+            form.querySelectorAll('button').forEach(button => { button.disabled = true; });
+            status.classList.remove('form-error');
+            status.textContent = 'Saglabā noraidījumu un paziņojumu...';
+            try { await onSubmit(reason); saved = true; dialog.close(); }
+            catch (error) { status.textContent = `Noraidījumu neizdevās saglabāt: ${error.message}`; status.classList.add('form-error'); }
+            finally { busy = false; form.querySelectorAll('button').forEach(button => { button.disabled = false; }); }
+        });
+        dialog.showModal();
+    });
+}
+
+function setupNotifications(currentUser) {
+    const navbar = document.querySelector('.navbar');
+    if (!navbar) return;
+    navbar.querySelector('[data-notification-nav]')?.notificationCleanup?.();
+    navbar.classList.toggle('has-notifications', Boolean(currentUser));
+    if (!currentUser) return;
+    const container = document.createElement('div');
+    container.className = 'notification-nav';
+    container.dataset.notificationNav = '';
+    container.innerHTML = `<button class="notification-toggle" type="button" aria-label="Paziņojumi" aria-expanded="false" aria-controls="notification-dropdown" data-notification-toggle>
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4"/></svg>
+        <span class="notification-badge" data-notification-count hidden></span></button>
+        <section id="notification-dropdown" class="notification-dropdown" aria-label="Paziņojumi" hidden>
+        <h2>Paziņojumi</h2><p data-notification-status role="status">Ielādē paziņojumus...</p>
+        <div data-notification-list></div><button class="table-button" type="button" data-notification-more hidden>Rādīt vairāk</button>
+        <button class="table-button" type="button" data-notification-retry hidden>Mēģināt vēlreiz</button></section>`;
+    navbar.append(container);
+    const toggle = container.querySelector('[data-notification-toggle]');
+    const panel = container.querySelector('#notification-dropdown');
+    const status = container.querySelector('[data-notification-status]');
+    const badge = container.querySelector('[data-notification-count]');
+    const list = container.querySelector('[data-notification-list]');
+    const more = container.querySelector('[data-notification-more]');
+    const retry = container.querySelector('[data-notification-retry]');
+    let limit = 20, busy = false, stopped = false, refreshQueued = false, detail;
+    let records = [];
+    const close = () => { panel.hidden = true; toggle.setAttribute('aria-expanded', 'false'); };
+    const refresh = async () => {
+        if (stopped) return;
+        if (busy) { refreshQueued = true; return; }
+        busy = true; more.disabled = true; retry.hidden = true;
+        try {
+            const [result, unread] = await Promise.all([
+                supabaseClient.from('notifications').select('id, event_id, title, body, created_at, read_at').eq('recipient_id', currentUser.id).order('created_at', { ascending: false }).order('id', { ascending: false }).limit(limit + 1),
+                supabaseClient.from('notifications').select('id', { count: 'exact', head: true }).eq('recipient_id', currentUser.id).is('read_at', null)
+            ]);
+            if (result.error || unread.error) throw result.error || unread.error;
+            if (stopped) return;
+            records = (result.data || []).slice(0, limit);
+            const count = unread.count || 0;
+            badge.hidden = !count; badge.textContent = count > 99 ? '99+' : String(count);
+            toggle.setAttribute('aria-label', count ? `Paziņojumi: ${count} nelasīti` : 'Paziņojumi');
+            list.innerHTML = records.map(item => `<button class="notification-item${item.read_at ? '' : ' unread'}" type="button" data-notification-id="${escapeHtml(item.id)}">
+                <strong>${escapeHtml(item.title)}</strong><span>${escapeHtml(item.body)}</span>
+                <time datetime="${escapeHtml(item.created_at)}">${escapeHtml(new Date(item.created_at).toLocaleString('lv-LV', { timeZone: 'Europe/Riga' }))}</time></button>`).join('');
+            status.textContent = records.length ? '' : 'Tev vēl nav paziņojumu.';
+            more.hidden = (result.data || []).length <= limit;
+        } catch (error) {
+            if (!stopped) { status.textContent = 'Paziņojumus neizdevās ielādēt.'; retry.hidden = false; }
+        } finally { busy = false; more.disabled = false; if (refreshQueued) { refreshQueued = false; refresh(); } }
+    };
+    toggle.addEventListener('click', () => { const open = panel.hidden; panel.hidden = !open; toggle.setAttribute('aria-expanded', String(open)); if (open) refresh(); });
+    more.addEventListener('click', () => { limit += 20; refresh(); });
+    retry.addEventListener('click', refresh);
+    list.addEventListener('click', async event => {
+        const button = event.target.closest('[data-notification-id]');
+        const item = records.find(item => item.id === button?.dataset.notificationId);
+        if (!item) return;
+        close();
+        detail?.remove();
+        detail = document.createElement('dialog');
+        detail.className = 'notification-detail-dialog';
+        detail.setAttribute('aria-labelledby', 'notification-detail-title');
+        detail.innerHTML = `<h2 id="notification-detail-title">${escapeHtml(item.title)}</h2>
+            <time>${escapeHtml(new Date(item.created_at).toLocaleString('lv-LV', { timeZone: 'Europe/Riga' }))}</time>
+            <p class="notification-body">${escapeHtml(item.body)}</p><p data-notification-read-status role="status"></p>
+            <div class="review-actions">${item.event_id ? `<a class="btn-card" href="event.html?id=${encodeURIComponent(item.event_id)}">Skatīt pasākumu</a>` : ''}
+            <button class="table-button" type="button" data-notification-close>Aizvērt</button></div>`;
+        document.body.append(detail);
+        detail.querySelector('[data-notification-close]').addEventListener('click', event => event.currentTarget.closest('dialog').close());
+        detail.addEventListener('close', event => { event.currentTarget.remove(); toggle.focus(); }, { once: true });
+        detail.showModal();
+        const readDialog = detail;
+        if (!item.read_at) {
+            try {
+                const { error } = await supabaseClient.rpc('mark_notification_read', { notification_id: item.id });
+                if (error) throw error;
+                await refresh();
+            } catch (error) { if (readDialog.isConnected) readDialog.querySelector('[data-notification-read-status]').textContent = 'Neizdevās atzīmēt kā lasītu. Paziņojums saglabāts.'; }
+        }
+    });
+    const outside = event => { if (!container.contains(event.target)) close(); };
+    const escape = event => { if (event.key === 'Escape' && !panel.hidden) { close(); toggle.focus(); } };
+    document.addEventListener('click', outside);
+    document.addEventListener('keydown', escape);
+    const timer = window.setInterval(() => { if (!document.hidden) refresh(); }, 30000);
+    container.notificationCleanup = () => {
+        stopped = true; clearInterval(timer); document.removeEventListener('click', outside); document.removeEventListener('keydown', escape); detail?.remove(); container.remove();
+    };
+    window.addEventListener('pagehide', container.notificationCleanup, { once: true });
+    refresh();
+}
+
 async function setupAdminRequests(currentUser) {
     const list = document.querySelector('[data-event-requests]');
 
@@ -784,6 +929,7 @@ async function setupAdminRequests(currentUser) {
         .from('events')
         .select('id, title, event_date, creator_id, profiles!events_creator_id_fkey(full_name), event_images(id)')
         .eq('status', 'pending')
+        .gte('event_date', eventToday())
         .order('created_at', { ascending: false });
 
     if (error) {
@@ -797,21 +943,27 @@ async function setupAdminRequests(currentUser) {
             <td>${escapeHtml(request.profiles?.full_name || request.creator_id)}</td>
             <td>${escapeHtml(request.event_date)}</td>
             <td>${(request.event_images || []).length} / 5</td>
-            <td><button class="table-button" type="button" data-event-action="approved" data-event-id="${request.id}">Apstiprināt</button> <button class="table-button table-button-danger" type="button" data-event-action="rejected" data-event-id="${request.id}">Noraidīt</button></td>
+            <td>${validEventDate(request.event_date) ? '' : '<small>Organizatoram jāmaina datums: atļauti ne vairāk kā 10 gadi nākotnē.</small>'}<button class="table-button" type="button" data-event-action="approved" data-event-id="${request.id}" ${validEventDate(request.event_date) ? '' : 'disabled'}>Apstiprināt</button> <button class="table-button table-button-danger" type="button" data-event-action="rejected" data-event-id="${request.id}">Noraidīt</button></td>
         </tr>
     `).join('') : '<tr><td colspan="5">Jaunu pasākumu pieprasījumu nav.</td></tr>';
 
     list.querySelectorAll('[data-event-action]').forEach((button) => {
         button.addEventListener('click', async () => {
             button.disabled = true;
-            const { error: updateError } = await supabaseClient.from('events').update({
-                status: button.dataset.eventAction,
-                reviewed_by: currentUser.id,
-                reviewed_at: new Date().toISOString()
-            }).eq('id', button.dataset.eventId);
-            if (updateError) {
+            const review = async (reason = null) => {
+                const { error } = await supabaseClient.rpc('admin_review_event', {
+                    target_event_id: button.dataset.eventId, decision: button.dataset.eventAction, rejection_reason: reason
+                });
+                if (error) throw error;
+            };
+            try {
+                if (button.dataset.eventAction === 'rejected') {
+                    const request = pendingRequests.find(request => request.id === button.dataset.eventId);
+                    if (!await showEventRejectionDialog(request.title, review)) { button.disabled = false; return; }
+                } else await review();
+            } catch (error) {
                 button.disabled = false;
-                showFormMessage(updateError.message, true);
+                showFormMessage(`Pasākumu neizdevās pārskatīt: ${error.message}`, true);
                 return;
             }
             await setupAdminRequests(currentUser);

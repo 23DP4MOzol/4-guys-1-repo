@@ -10,6 +10,7 @@ npm.cmd install --prefix $eventTestDeps --no-audit --no-fund --ignore-scripts pl
 $env:NODE_PATH = Join-Path $eventTestDeps 'node_modules'
 node tests/events.test.cjs
 node tests/workflows.test.cjs
+node tests/reviews.test.cjs
 ```
 
 Windows uses installed Microsoft Edge. Other platforms use Playwright Chromium; set `BROWSER_PATH` to use an existing Chromium browser.
@@ -20,17 +21,19 @@ Workflow checks also cover duplicate applications (including simultaneous attemp
 
 ## Database deployment
 
-For any Supabase project, paste `supabase-all.sql` into its SQL Editor and run the whole file. It includes the schema, event image migration, workflow migration and optional Cron setup in dependency order.
+For any Supabase project, paste **the whole `supabase-all.sql`** into its SQL Editor and run it. This is the only file needed for deployment. It includes the schema, photo handling, workflows, date limits, review notifications and Cron cleanup.
 
-The component files remain in the repository for the local test harness and for reference. If you run migrations separately, use this order:
-
-1. `supabase-event-images.sql` (if not already applied).
-2. `supabase-event-workflows.sql` (chat permissions, moderation fix, activity logging, date validation and cleanup).
-3. `supabase-maintenance.sql` (enable Cron and install automatic cleanup).
+Component files remain for the older test harness and reference; you do not need to run them separately. New changes to the complete deployment are in `supabase-all.sql`.
 
 New installations should use `supabase-all.sql`.
 
 The maintenance job runs hourly. It deletes audit entries older than 14 days and messages belonging to expired or archived events. Archiving an event also deletes its chat immediately; hard deletion cascades. Chat access ends as soon as the event date is past in Europe/Riga. The migration cleans existing expired data on application. This is a rolling two-week history, not a wipe of recent activity every other week.
+
+Pending and rejected events whose dates are before today in Latvia are deleted when the SQL runs, then by the hourly job. Today's requests, future requests, and approved event history are preserved. The browser and database allow event creation/editing only from today through exactly ten calendar years ahead. Existing invalid future requests cannot be approved; their organizers must correct the date or administrators can reject them with a reason.
+
+Rejecting a request opens a modal requiring a 3–2000 character reason. The database saves the review and creates the owner's notification in the same transaction. Clicking the navigation bell opens recent notifications with an unread count; clicking a notification opens its full reason and marks it as read. Notifications retain their title and reason after the rejected event expires and is deleted. The UI refreshes notifications every 30 seconds and whenever the dropdown opens.
+
+`tests/reviews.test.cjs` runs the entire pasteable SQL file repeatedly in local PostgreSQL, with only extension installation and Cron scheduling stubbed. It verifies date boundaries and extreme years, owner/admin permissions, atomic review and notification writes, read state, expired-request deletion, and the actual admin-to-owner browser flow on desktop and mobile. Hosted extension installation and scheduler execution still require a deployed smoke test.
 
 Verify the scheduled job with `select jobname, schedule, active from cron.job where jobname = 'voluntio-retention';`. [Supabase Cron setup](https://supabase.com/docs/guides/cron/install) documents the required extension. The scheduler's own history is limited to 14 days too.
 

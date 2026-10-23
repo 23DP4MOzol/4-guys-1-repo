@@ -1,5 +1,6 @@
-﻿-- Voluntio complete Supabase setup. Paste this entire file into the Supabase SQL Editor.
+-- Voluntio complete Supabase setup. Paste this entire file into the Supabase SQL Editor.
 -- It is safe to rerun after a partial or previous deployment.
+-- This is the only SQL file you need to run: it includes dates, cleanup and notifications.
 
 -- ============================================================
 -- Included: supabase-schema.sql
@@ -1004,7 +1005,7 @@ begin
     select * into event_record from public.events where id = application_record.event_id for update;
     if event_record.creator_id is distinct from auth.uid() then raise exception 'Only the event organizer can review applications'; end if;
     if new_status = 'approved' then
-        if event_record.status = 'archived' or event_record.event_date < public.event_today() then raise exception 'PasÄkums ir beidzies vai atcelts'; end if;
+        if event_record.status = 'archived' or event_record.event_date < public.event_today() then raise exception 'Pasākums ir beidzies vai atcelts'; end if;
         if application_record.requested_role is null or btrim(application_record.requested_role) = '' then
             raise exception 'The volunteer must select a role';
         end if;
@@ -1026,7 +1027,7 @@ returns trigger language plpgsql set search_path = public
 as $$
 begin
     if new.event_date is null or new.event_date < public.event_today() then
-        raise exception 'PasÄkuma datumam jÄbÅ«t Å¡odien vai nÄkotnÄ“.';
+        raise exception 'Pasākuma datumam jābūt šodien vai nākotnē.';
     end if;
     return new;
 end;
@@ -1088,11 +1089,11 @@ begin
     -- Serialize sends with event cancellation so a late send cannot recreate its chat.
     perform 1 from public.events where id = new.event_id for share;
     if new.sender_id is distinct from auth.uid() or not (public.event_chat_access(new.event_id)->>'can_write')::boolean then
-        raise exception 'Tev nav atÄ¼auts rakstÄ«t Å¡Ä« pasÄkuma ÄatÄ.';
+        raise exception 'Tev nav atļauts rakstīt šī pasākuma čatā.';
     end if;
     new.message := btrim(new.message);
     if new.message is null or char_length(new.message) not between 1 and 1000 then
-        raise exception 'ZiÅ†ai jÄbÅ«t no 1 lÄ«dz 1000 rakstzÄ«mÄ“m.';
+        raise exception 'Ziņai jābūt no 1 līdz 1000 rakstzīmēm.';
     end if;
     return new;
 end;
@@ -1201,461 +1202,7 @@ end;
 $$;
 commit;
 
--- For automatic retention, also run supabase-maintenance.sql (requires Supabase Cron).
-
--- ============================================================
--- Included: supabase-event-images.sql
--- ============================================================
--- Run once in the Supabase SQL Editor for an existing deployment.
--- Also included in supabase-schema.sql for new deployments.
-begin;
-
-drop policy if exists "Approved event images are public" on public.event_images;
-create policy "Approved event images are public"
-on public.event_images for select to anon, authenticated
-using (exists (
-    select 1 from public.events
-    where id = event_id and (status in ('approved', 'archived') or creator_id = auth.uid())
-) or public.is_admin());
-
-drop policy if exists "Anyone can view approved event images" on storage.objects;
-create policy "Anyone can view approved event images"
-on storage.objects for select to anon, authenticated
-using (bucket_id = 'event-images' and (
-    owner_id = auth.uid()::text or exists (
-        select 1 from public.event_images image
-        join public.events event on event.id = image.event_id
-                where (image.storage_path = name or image.original_storage_path = name)
-                    and (event.status in ('approved', 'archived') or event.creator_id = auth.uid())
-    ) or public.is_admin()
-));
-
--- One transaction commits event fields, image order, additions and removals.
--- On any validation/storage-reference error, the previous event stays intact.
-create or replace function public.save_event_with_images(
-    target_event_id uuid, event_data jsonb, image_paths text[], original_image_paths text[]
-)
-returns uuid
-language plpgsql
-security definer
-set search_path = public, pg_temp
-as $$
-declare
-    actor uuid := auth.uid();
-    existing_creator uuid;
-    roles jsonb := event_data->'volunteer_role_requirements';
-    latitude_value double precision := nullif(trim(event_data->>'latitude'), '')::double precision;
-    longitude_value double precision := nullif(trim(event_data->>'longitude'), '')::double precision;
-begin
-    if actor is null or not exists (
-        select 1 from public.profiles where id = actor and (not is_banned or banned_until is null or banned_until <= now())
-    ) then
-        raise exception 'Sign in with an active account to save an event';
-    end if;
-    if target_event_id is null then raise exception 'Event ID is required'; end if;
-    if image_paths is null or original_image_paths is null or cardinality(image_paths) > 5 or
-        cardinality(original_image_paths) <> cardinality(image_paths) or
-        exists (select 1 from unnest(image_paths) path where path is null) or
-        exists (select 1 from unnest(original_image_paths) path where path is null) or
-        cardinality(image_paths) <> (select count(distinct path) from unnest(image_paths) path) or
-        cardinality(original_image_paths) <> (select count(distinct path) from unnest(original_image_paths) path) then
-        raise exception 'Choose at most five different images';
-    end if;
-    if nullif(trim(event_data->>'category'), '') is null or
-        nullif(trim(event_data->>'location'), '') is null or
-        nullif(trim(event_data->>'description'), '') is null or
-        latitude_value is null or longitude_value is null or
-        not (latitude_value between -90 and 90) or not (longitude_value between -180 and 180) then
-        raise exception 'Choose a location from the map or search results before saving';
-    end if;
-    if roles is null or jsonb_typeof(roles) <> 'array' then
-        raise exception 'Volunteer roles must be an array';
-    end if;
-    if jsonb_array_length(roles) = 0 or exists (
-        select 1 from jsonb_array_elements(roles) role
-        where nullif(trim(role->>'name'), '') is null or
-            coalesce(role->>'capacity', '') !~ '^[1-9][0-9]{0,2}$'
-    ) then
-        raise exception 'Provide at least one role with a capacity from 1 to 999';
-    end if;
-
-    -- Serialize retries, including concurrent requests creating the same UUID.
-    perform pg_advisory_xact_lock(hashtextextended(target_event_id::text, 0));
-    select creator_id into existing_creator from public.events where id = target_event_id for update;
-    if found and existing_creator <> actor then
-        raise exception 'Only the event creator can edit this event';
-    end if;
-    if exists (
-        select 1 from unnest(image_paths) path
-        where split_part(path, '/', 1) <> actor::text or not exists (
-            select 1 from storage.objects object
-            where object.bucket_id = 'event-images' and object.name = path and object.owner_id = actor::text
-        )
-    ) or exists (
-        select 1 from unnest(original_image_paths) path
-        where split_part(path, '/', 1) <> actor::text or not exists (
-            select 1 from storage.objects object
-            where object.bucket_id = 'event-images' and object.name = path and object.owner_id = actor::text
-        )
-    ) then
-        raise exception 'Upload each image to your own storage before saving';
-    end if;
-
-    insert into public.events (id, creator_id, title, category, event_date, location,
-        latitude, longitude, volunteer_roles, volunteer_role_requirements, description, whitelist_volunteers, volunteer_hours, status)
-    values (target_event_id, actor, trim(event_data->>'title'), event_data->>'category',
-        (event_data->>'event_date')::date, trim(event_data->>'location'),
-        latitude_value, longitude_value,
-        event_data->>'volunteer_roles', roles, trim(event_data->>'description'),
-        coalesce((event_data->>'whitelist_volunteers')::boolean, false), coalesce((event_data->>'volunteer_hours')::numeric, 1), 'pending')
-    on conflict (id) do update set
-        title = excluded.title, category = excluded.category, event_date = excluded.event_date,
-        location = excluded.location, latitude = excluded.latitude, longitude = excluded.longitude,
-        volunteer_roles = excluded.volunteer_roles, volunteer_role_requirements = excluded.volunteer_role_requirements,
-        description = excluded.description, whitelist_volunteers = excluded.whitelist_volunteers,
-        volunteer_hours = excluded.volunteer_hours,
-        status = case when public.events.status = 'approved'::public.event_status
-            then 'approved'::public.event_status else 'pending'::public.event_status end,
-        reviewed_by = case when public.events.status = 'approved'::public.event_status then public.events.reviewed_by else null end,
-        reviewed_at = case when public.events.status = 'approved'::public.event_status then public.events.reviewed_at else null end;
-
-    delete from public.event_images where event_id = target_event_id;
-    insert into public.event_images (event_id, storage_path, original_storage_path, sort_order)
-    select target_event_id, images.path, originals.path, (images.position - 1)::smallint
-    from unnest(image_paths) with ordinality as images(path, position)
-    join unnest(original_image_paths) with ordinality as originals(path, position)
-        on originals.position = images.position;
-    return target_event_id;
-end;
-$$;
-
-create or replace function public.save_event_with_images(
-    target_event_id uuid, event_data jsonb, image_paths text[]
-)
-returns uuid
-language plpgsql
-security definer
-set search_path = public, pg_temp
-as $$
-begin
-    return public.save_event_with_images(target_event_id, event_data, image_paths, image_paths);
-end;
-$$;
-
-revoke all on function public.save_event_with_images(uuid, jsonb, text[]), public.save_event_with_images(uuid, jsonb, text[], text[]) from public, anon;
-grant execute on function public.save_event_with_images(uuid, jsonb, text[]), public.save_event_with_images(uuid, jsonb, text[], text[]) to authenticated;
-
-commit;
-
--- ============================================================
--- Included: supabase-event-workflows.sql
--- ============================================================
--- Apply after the base schema and supabase-event-images.sql.
-begin;
-
--- Only the organizer RPC can change moderation state.
-alter table public.event_participant_moderation enable row level security;
-
-create or replace function public.event_today()
-returns date language sql stable set search_path = public
-as $$ select (now() at time zone 'Europe/Riga')::date $$;
-
-create or replace function public.organizer_set_participant_state(event_id uuid, participant_id uuid, action text)
-returns void
-language plpgsql
-security definer
-set search_path = public
-as $$
-declare
-    target_event_id alias for $1;
-    target_participant_id alias for $2;
-    requested_action text := lower(btrim(action));
-    application_record public.event_applications%rowtype;
-    event_record public.events%rowtype;
-begin
-    if requested_action not in ('kick', 'mute', 'unmute') then
-        raise exception 'Action must be kick, mute, or unmute';
-    end if;
-
-    -- Lock in the same application-then-event order as application approval
-    -- to avoid a deadlock when an organizer reviews and moderates together.
-    select * into application_record
-    from public.event_applications application
-    where application.event_id = target_event_id
-      and application.volunteer_id = target_participant_id
-    for update;
-    if not found or application_record.status <> 'approved'::public.application_status then
-        raise exception 'Only approved participants can be moderated';
-    end if;
-
-    select * into event_record
-    from public.events event_record_source
-    where event_record_source.id = application_record.event_id
-    for update;
-    if not found then
-        raise exception 'Event not found';
-    end if;
-
-    if event_record.creator_id is distinct from auth.uid() then
-        raise exception 'Only this event organizer can moderate participants';
-    end if;
-
-    if target_participant_id = event_record.creator_id then
-        raise exception 'The event organizer cannot be moderated as a participant';
-    end if;
-
-    if requested_action = 'kick' then
-        update public.event_applications
-        set status = 'rejected'::public.application_status
-        where id = application_record.id;
-    elsif requested_action = 'mute' then
-        insert into public.event_participant_moderation (
-            event_id, participant_id, is_muted, muted_at, muted_by, updated_at
-        ) values (
-            event_record.id, target_participant_id, true, now(), auth.uid(), now()
-        )
-        on conflict on constraint event_participant_moderation_pkey do update
-        set is_muted = true,
-            muted_at = now(),
-            muted_by = auth.uid(),
-            updated_at = now();
-    else
-        insert into public.event_participant_moderation (
-            event_id, participant_id, is_muted, muted_at, muted_by, updated_at
-        ) values (
-            event_record.id, target_participant_id, false, null, auth.uid(), now()
-        )
-        on conflict on constraint event_participant_moderation_pkey do update
-        set is_muted = false,
-            muted_at = null,
-            muted_by = auth.uid(),
-            updated_at = now();
-    end if;
-
-    insert into public.audit_logs (actor_id, action, entity_type, entity_id, details)
-    values (
-        auth.uid(),
-        'event_participant_' || requested_action,
-        'event_participant',
-        target_participant_id,
-        jsonb_build_object('event_id', event_record.id, 'participant_id', target_participant_id)
-    );
-end;
-$$;
-
-create or replace function public.set_event_application_status(application_id uuid, new_status public.application_status)
-returns void
-language plpgsql
-security definer
-set search_path = public
-as $$
-declare
-    application_record public.event_applications%rowtype;
-    event_record public.events%rowtype;
-    role_capacity integer;
-    filled_count integer;
-begin
-    select * into application_record from public.event_applications where id = application_id for update;
-    if not found then raise exception 'Application not found'; end if;
-    select * into event_record from public.events where id = application_record.event_id for update;
-    if event_record.creator_id is distinct from auth.uid() then raise exception 'Only the event organizer can review applications'; end if;
-    if new_status = 'approved' then
-        if event_record.status = 'archived' or event_record.event_date < public.event_today() then raise exception 'PasÄkums ir beidzies vai atcelts'; end if;
-        if application_record.requested_role is null or btrim(application_record.requested_role) = '' then
-            raise exception 'The volunteer must select a role';
-        end if;
-        select nullif(role_item ->> 'capacity', '')::integer into role_capacity
-        from jsonb_array_elements(event_record.volunteer_role_requirements) role_item
-        where role_item ->> 'name' = application_record.requested_role;
-        if coalesce(role_capacity, 0) < 1 then raise exception 'This role is no longer available'; end if;
-        select count(*) into filled_count from public.event_applications
-        where event_id = event_record.id and requested_role = application_record.requested_role and status = 'approved'
-        and id <> application_record.id;
-        if filled_count >= role_capacity then raise exception 'All places for this role are already filled'; end if;
-    end if;
-    update public.event_applications set status = new_status where id = application_id;
-end;
-$$;
-
-create or replace function public.enforce_future_event_date()
-returns trigger language plpgsql set search_path = public
-as $$
-begin
-    if new.event_date is null or new.event_date < public.event_today() then
-        raise exception 'PasÄkuma datumam jÄbÅ«t Å¡odien vai nÄkotnÄ“.';
-    end if;
-    return new;
-end;
-$$;
-drop trigger if exists event_date_must_not_be_past on public.events;
-create trigger event_date_must_not_be_past before insert or update of event_date on public.events
-for each row execute function public.enforce_future_event_date();
-
-drop policy if exists "Users can apply to approved events" on public.event_applications;
-create policy "Users can apply to approved events" on public.event_applications for insert to authenticated
-with check (volunteer_id = auth.uid() and status = 'pending' and exists (
-    select 1 from public.events where id = event_id and status = 'approved'
-    and event_date >= public.event_today() and creator_id <> auth.uid()
-) and exists (select 1 from public.profiles where id = auth.uid() and (not is_banned or banned_until is null or banned_until <= now())));
-
--- One RLS-safe source of chat permissions, shared by the UI and message policies.
-create or replace function public.event_chat_access(target_event_id uuid)
-returns jsonb language plpgsql security definer set search_path = public, pg_temp stable
-as $$
-declare
-    event_record public.events%rowtype;
-    application_status public.application_status;
-    muted boolean;
-begin
-    if auth.uid() is null or not exists (select 1 from public.profiles where id = auth.uid() and (not is_banned or banned_until is null or banned_until <= now())) then
-        return jsonb_build_object('can_read', false, 'can_write', false, 'reason', 'sign_in');
-    end if;
-    select * into event_record from public.events where id = target_event_id;
-    if not found or event_record.status = 'archived' or event_record.event_date < public.event_today() then
-        return jsonb_build_object('can_read', false, 'can_write', false, 'reason', 'ended');
-    end if;
-    if event_record.creator_id = auth.uid() then
-        return jsonb_build_object('can_read', true, 'can_write', true, 'reason', 'organizer');
-    end if;
-    select status into application_status from public.event_applications
-    where event_id = target_event_id and volunteer_id = auth.uid();
-    if application_status is distinct from 'approved'::public.application_status then
-        return jsonb_build_object('can_read', false, 'can_write', false, 'reason', coalesce(application_status::text, 'not_joined'));
-    end if;
-    select coalesce(is_muted, false) into muted from public.event_participant_moderation
-    where event_id = target_event_id and participant_id = auth.uid();
-    return jsonb_build_object('can_read', true, 'can_write', not coalesce(muted, false), 'reason', case when muted then 'muted' else 'participant' end);
-end;
-$$;
-revoke all on function public.event_chat_access(uuid) from public, anon;
-grant execute on function public.event_chat_access(uuid) to authenticated;
-
-drop policy if exists "Event participants can read messages" on public.event_messages;
-create policy "Event participants can read messages" on public.event_messages for select to authenticated
-using ((public.event_chat_access(event_id)->>'can_read')::boolean);
-drop policy if exists "Event participants can send messages" on public.event_messages;
-create policy "Event participants can send messages" on public.event_messages for insert to authenticated
-with check (sender_id = auth.uid() and (public.event_chat_access(event_id)->>'can_write')::boolean);
-
-create or replace function public.validate_event_message()
-returns trigger language plpgsql security definer set search_path = public, pg_temp
-as $$
-begin
-    -- Serialize sends with event cancellation so a late send cannot recreate its chat.
-    perform 1 from public.events where id = new.event_id for share;
-    if new.sender_id is distinct from auth.uid() or not (public.event_chat_access(new.event_id)->>'can_write')::boolean then
-        raise exception 'Tev nav atÄ¼auts rakstÄ«t Å¡Ä« pasÄkuma ÄatÄ.';
-    end if;
-    new.message := btrim(new.message);
-    if new.message is null or char_length(new.message) not between 1 and 1000 then
-        raise exception 'ZiÅ†ai jÄbÅ«t no 1 lÄ«dz 1000 rakstzÄ«mÄ“m.';
-    end if;
-    return new;
-end;
-$$;
-drop trigger if exists validate_event_message on public.event_messages;
-create trigger validate_event_message before insert on public.event_messages
-for each row execute function public.validate_event_message();
-
-create or replace function public.clear_closed_event_chat()
-returns trigger language plpgsql security definer set search_path = public, pg_temp
-as $$
-begin
-    if new.status = 'archived' or new.event_date < public.event_today() then
-        delete from public.event_messages where event_id = new.id;
-    end if;
-    return new;
-end;
-$$;
-drop trigger if exists clear_closed_event_chat on public.events;
-create trigger clear_closed_event_chat after update of status, event_date on public.events
-for each row execute function public.clear_closed_event_chat();
--- Hard deletion already cascades through event_messages.event_id.
-
-create index if not exists audit_logs_actor_created_idx on public.audit_logs(actor_id, created_at desc, id desc);
-create index if not exists audit_logs_created_idx on public.audit_logs(created_at);
-create index if not exists event_messages_event_created_idx on public.event_messages(event_id, created_at);
-
--- Store concise activity metadata, not copies of message bodies or report evidence.
-create or replace function public.record_user_activity()
-returns trigger language plpgsql security definer set search_path = public, pg_temp
-as $$
-declare
-    before_record jsonb := case when tg_op = 'INSERT' then '{}'::jsonb else to_jsonb(old) end;
-    after_record jsonb := case when tg_op = 'DELETE' then '{}'::jsonb else to_jsonb(new) end;
-    record_data jsonb := case when tg_op = 'DELETE' then to_jsonb(old) else to_jsonb(new) end;
-    changed text[];
-begin
-    if auth.uid() is null then return null; end if;
-    if tg_table_name = 'event_messages' and tg_op = 'DELETE' and not exists (
-        select 1 from public.events where id = (record_data->>'event_id')::uuid
-        and status <> 'archived' and event_date >= public.event_today()
-    ) then return null; end if;
-    select array_agg(key order by key) into changed from jsonb_object_keys(after_record || before_record) key
-    where after_record->key is distinct from before_record->key;
-    if tg_op = 'UPDATE' and changed is null then return null; end if;
-    insert into public.audit_logs(actor_id, action, entity_type, entity_id, details)
-    values (auth.uid(), tg_op, tg_table_name, (record_data->>'id')::uuid,
-        jsonb_strip_nulls(jsonb_build_object('title', record_data->>'title', 'event_id', record_data->>'event_id',
-        'status_from', before_record->>'status', 'status_to', after_record->>'status', 'changed_fields', to_jsonb(changed))));
-    return null;
-end;
-$$;
-do $$
-declare table_name text;
-begin
-    foreach table_name in array array['events', 'event_applications', 'event_messages', 'profiles', 'reports'] loop
-        execute format('drop trigger if exists record_user_activity on public.%I', table_name);
-        execute format('create trigger record_user_activity after insert or update or delete on public.%I for each row execute function public.record_user_activity()', table_name);
-    end loop;
-end;
-$$;
-drop policy if exists "Authenticated users create audit logs" on public.audit_logs;
--- Audit records are written by trusted triggers/functions, never arbitrary browser inserts.
-
-create or replace function public.admin_clear_user_audit(target_user_id uuid)
-returns bigint language plpgsql security definer set search_path = public, pg_temp
-as $$
-declare deleted_count bigint;
-begin
-    if not public.is_admin() or not exists (select 1 from public.profiles where id = auth.uid() and (not is_banned or banned_until is null or banned_until <= now())) then
-        raise exception 'Only administrators can clear audit logs';
-    end if;
-    if target_user_id is null then raise exception 'Select a user'; end if;
-    delete from public.audit_logs where actor_id = target_user_id;
-    get diagnostics deleted_count = row_count;
-    insert into public.audit_logs(actor_id, action, entity_type, entity_id, details)
-    values (auth.uid(), 'cleared_user_audit', 'audit', target_user_id, jsonb_build_object('deleted_count', deleted_count));
-    return deleted_count;
-end;
-$$;
-revoke all on function public.admin_clear_user_audit(uuid) from public, anon;
-grant execute on function public.admin_clear_user_audit(uuid) to authenticated;
-
-create or replace function public.cleanup_event_data()
-returns void language plpgsql security definer set search_path = public, pg_temp
-as $$
-begin
-    delete from public.event_messages message using public.events event
-    where message.event_id = event.id and (event.status = 'archived' or event.event_date < public.event_today());
-    delete from public.audit_logs where created_at < now() - interval '14 days';
-end;
-$$;
-revoke all on function public.cleanup_event_data() from public, anon, authenticated;
--- SQL Editor/job owner only. Apply retention immediately to existing records, too.
-select public.cleanup_event_data();
-
-alter table public.event_messages replica identity full;
-do $$
-begin
-    if exists (select 1 from pg_publication where pubname = 'supabase_realtime') and not exists (
-        select 1 from pg_publication_tables where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'event_messages'
-    ) then
-        alter publication supabase_realtime add table public.event_messages;
-    end if;
-end;
-$$;
-commit;
+-- Automatic retention is installed below in this same file.
 
 -- ============================================================
 -- Included: supabase-maintenance.sql
@@ -1822,3 +1369,143 @@ select coalesce((select sum(hours) from public.volunteer_hours where volunteer_i
 $$;
 revoke all on function public.request_event_completion(uuid), public.admin_review_event_completion(uuid, public.completion_status, text), public.my_volunteer_summary() from public, anon;
 grant execute on function public.request_event_completion(uuid), public.admin_review_event_completion(uuid, public.completion_status, text), public.my_volunteer_summary() to authenticated;
+-- ============================================================
+-- Event date limits, expired requests, reviews and notifications
+-- This section upgrades existing deployments as well as fresh installations.
+-- ============================================================
+begin;
+
+alter table public.events add column if not exists rejection_reason text;
+
+create or replace function public.enforce_future_event_date()
+returns trigger language plpgsql set search_path = public
+as $$
+begin
+    if new.event_date is null or new.event_date < public.event_today() then
+        raise exception 'Pasākuma datumam jābūt šodien vai nākotnē.';
+    end if;
+    if new.event_date > (public.event_today() + interval '10 years')::date then
+        raise exception 'Pasākuma datums nedrīkst būt vairāk nekā 10 gadus nākotnē.';
+    end if;
+    return new;
+end;
+$$;
+drop trigger if exists event_date_must_not_be_past on public.events;
+create trigger event_date_must_not_be_past before insert or update of event_date on public.events
+for each row execute function public.enforce_future_event_date();
+drop trigger if exists event_approval_date_must_be_valid on public.events;
+create trigger event_approval_date_must_be_valid before update of status on public.events
+for each row when (new.status = 'approved' and old.status is distinct from new.status)
+execute function public.enforce_future_event_date();
+
+create table if not exists public.notifications (
+    id uuid primary key default gen_random_uuid(),
+    recipient_id uuid not null references public.profiles(id) on delete cascade,
+    event_id uuid references public.events(id) on delete set null,
+    title text not null,
+    body text not null,
+    created_at timestamptz not null default now(),
+    read_at timestamptz
+);
+create index if not exists notifications_recipient_created_idx on public.notifications(recipient_id, created_at desc, id desc);
+create index if not exists notifications_unread_idx on public.notifications(recipient_id) where read_at is null;
+alter table public.notifications enable row level security;
+drop policy if exists "Users read their notifications" on public.notifications;
+create policy "Users read their notifications" on public.notifications for select to authenticated
+using (recipient_id = auth.uid() and public.is_active_user());
+revoke all on public.notifications from anon;
+revoke insert, update, delete, truncate, references, trigger on public.notifications from authenticated;
+grant select on public.notifications to authenticated;
+
+create or replace function public.validate_event_review()
+returns trigger language plpgsql security definer set search_path = public, pg_temp
+as $$
+begin
+    if new.status is not distinct from old.status and new.rejection_reason is not distinct from old.rejection_reason then
+        return new;
+    end if;
+    if new.status in ('approved', 'rejected') then
+        if not public.is_admin() then raise exception 'Only administrators can review events'; end if;
+        if new.status = 'rejected' then
+            new.rejection_reason := btrim(new.rejection_reason);
+            if new.rejection_reason is null or char_length(new.rejection_reason) not between 3 and 2000 then
+                raise exception 'Norādi noraidīšanas iemeslu no 3 līdz 2000 rakstzīmēm.';
+            end if;
+        else new.rejection_reason := null;
+        end if;
+        new.reviewed_by := auth.uid();
+        new.reviewed_at := now();
+    elsif new.status = 'pending' then
+        new.rejection_reason := null;
+    end if;
+    return new;
+end;
+$$;
+drop trigger if exists validate_event_review on public.events;
+create trigger validate_event_review before update of status, rejection_reason on public.events
+for each row execute function public.validate_event_review();
+
+create or replace function public.notify_event_review()
+returns trigger language plpgsql security definer set search_path = public, pg_temp
+as $$
+begin
+    if new.status = 'rejected' and (old.status is distinct from new.status or old.rejection_reason is distinct from new.rejection_reason) then
+        insert into public.notifications(recipient_id, event_id, title, body)
+        values (new.creator_id, new.id, 'Pasākums noraidīts: ' || new.title, new.rejection_reason);
+    elsif new.status = 'approved' and old.status is distinct from new.status then
+        insert into public.notifications(recipient_id, event_id, title, body)
+        values (new.creator_id, new.id, 'Pasākums apstiprināts: ' || new.title, 'Tavs pasākums ir apstiprināts un publicēts.');
+    end if;
+    return null;
+end;
+$$;
+drop trigger if exists notify_event_review on public.events;
+create trigger notify_event_review after update of status, rejection_reason on public.events
+for each row execute function public.notify_event_review();
+
+create or replace function public.admin_review_event(target_event_id uuid, decision text, rejection_reason text default null)
+returns void language plpgsql security definer set search_path = public, pg_temp
+as $$
+declare event_record public.events%rowtype;
+begin
+    if not public.is_admin() or not public.is_active_user() then raise exception 'Only administrators can review events'; end if;
+    if decision not in ('approved', 'rejected') or decision is null then raise exception 'Invalid review decision'; end if;
+    select * into event_record from public.events where id = target_event_id for update;
+    if not found then raise exception 'Pasākums vairs nav pieejams.'; end if;
+    if event_record.status <> 'pending' then raise exception 'Šis pasākums jau ir pārskatīts. Atsvaidzini sarakstu.'; end if;
+    update public.events set status = decision::public.event_status,
+        rejection_reason = case when decision = 'rejected' then admin_review_event.rejection_reason else null end
+    where id = target_event_id;
+end;
+$$;
+revoke all on function public.admin_review_event(uuid, text, text) from public, anon;
+grant execute on function public.admin_review_event(uuid, text, text) to authenticated;
+
+create or replace function public.mark_notification_read(notification_id uuid)
+returns void language plpgsql security definer set search_path = public, pg_temp
+as $$
+begin
+    if not public.is_active_user() then raise exception 'Sign in to read notifications'; end if;
+    update public.notifications set read_at = coalesce(read_at, now())
+    where id = notification_id and recipient_id = auth.uid();
+    if not found then raise exception 'Notification not found'; end if;
+end;
+$$;
+revoke all on function public.mark_notification_read(uuid) from public, anon;
+grant execute on function public.mark_notification_read(uuid) to authenticated;
+
+create or replace function public.cleanup_event_data()
+returns void language plpgsql security definer set search_path = public, pg_temp
+as $$
+begin
+    delete from public.events where status in ('pending', 'rejected') and event_date < public.event_today();
+    delete from public.event_messages message using public.events event
+    where message.event_id = event.id and (event.status = 'archived' or event.event_date < public.event_today());
+    delete from public.audit_logs where created_at < now() - interval '14 days';
+end;
+$$;
+revoke all on function public.cleanup_event_data() from public, anon, authenticated;
+-- Clean existing expired requests now; the hourly Cron job repeats this automatically.
+select public.cleanup_event_data();
+notify pgrst, 'reload schema';
+commit;
