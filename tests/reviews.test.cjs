@@ -175,7 +175,13 @@ async function main() {
         check(Boolean((await notifications(owner))[0].read_at), true, 'opening notification persists read status in database');
         await userPage.click('[data-notification-close]');
         await userPage.setViewportSize({ width: 390, height: 844 });
-        check(await userPage.locator('[data-notification-toggle]').isVisible(), true, 'notification button visible on mobile with menu closed');
+        await userPage.click('[data-menu-toggle]');
+        check(await userPage.locator('[data-notification-toggle]').isVisible(), true, 'notification button visible beside logout in mobile menu');
+        check(await userPage.evaluate(() => {
+            const logout = document.querySelector('.logout-button').getBoundingClientRect();
+            const bell = document.querySelector('[data-notification-toggle]').getBoundingClientRect();
+            return bell.left >= logout.right && Math.abs((bell.top + bell.height / 2) - (logout.top + logout.height / 2)) < 2;
+        }), true, 'mobile bell sits directly to the right of logout');
         await userPage.click('[data-notification-toggle]');
         const bounds = await userPage.locator('#notification-dropdown').boundingBox();
         check(bounds.x >= 0 && bounds.x + bounds.width <= 391, true, `mobile dropdown fits viewport: ${JSON.stringify(bounds)}`);

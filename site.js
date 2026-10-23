@@ -168,9 +168,10 @@ function updateAuthLinks(currentUser) {
     });
 
     navbar?.classList.toggle('has-auth-user', Boolean(currentUser));
-    setupNotifications(currentUser);
+    navbar?.querySelector('[data-notification-nav]')?.notificationCleanup?.();
 
     if (!authButtons || !currentUser) {
+        setupNotifications(null);
         return;
     }
 
@@ -185,6 +186,7 @@ function updateAuthLinks(currentUser) {
         await supabaseClient.auth.signOut();
         window.location.href = 'index.html';
     });
+    setupNotifications(currentUser);
 }
 
 async function setupHomeSummary() {
@@ -841,7 +843,9 @@ function setupNotifications(currentUser) {
         <h2>Paziņojumi</h2><p data-notification-status role="status">Ielādē paziņojumus...</p>
         <div data-notification-list></div><button class="table-button" type="button" data-notification-more hidden>Rādīt vairāk</button>
         <button class="table-button" type="button" data-notification-retry hidden>Mēģināt vēlreiz</button></section>`;
-    navbar.append(container);
+    const authButtons = navbar.querySelector('.auth-buttons');
+    if (!authButtons) return;
+    authButtons.append(container);
     const toggle = container.querySelector('[data-notification-toggle]');
     const panel = container.querySelector('#notification-dropdown');
     const status = container.querySelector('[data-notification-status]');
