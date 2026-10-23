@@ -670,7 +670,7 @@ function setupEventDetail() {
         }
         const { data: availability } = await supabaseClient.rpc('event_role_availability', { target_event_id: event.id });
         const roles = (availability || eventRoles(event)).map((role) => ({ name: role.role_name || role.name, capacity: Number(role.capacity), filled: Number(role.filled || 0) }));
-        detail.innerHTML = `<div class="event-hero-copy"><p class="eyebrow">${escapeHtml(event.category)}</p><h1>${escapeHtml(event.title)}</h1><p>${escapeHtml(event.description)}</p></div><div class="event-facts"><span>📅 ${escapeHtml(event.event_date)}</span><span>🕒 ${escapeHtml(String(event.event_start_time || '09:00').slice(0, 5))}–${escapeHtml(String(event.event_end_time || '10:00').slice(0, 5))}</span><span>📍 ${escapeHtml(event.location)}</span><span>⏱️ ${escapeHtml(Number(event.volunteer_hours || 1).toLocaleString('lv-LV'))} stundas vienam dalībniekam</span><span>👥 ${roles.reduce((total, role) => total + role.filled, 0)} / ${roles.reduce((total, role) => total + role.capacity, 0)} brīvprātīgie</span></div><div class="event-detail-grid"><div class="event-detail-block event-detail-roles"><span class="detail-label">Nepieciešamās lomas</span><div class="role-capacity-list">${roles.map((role) => `<span>${escapeHtml(role.name)} <strong>(${role.filled}/${role.capacity})</strong></span>`).join('') || '<span>Lomas nav norādītas.</span>'}</div></div></div>`;
+        detail.innerHTML = `<div class="event-hero-copy"><p class="eyebrow">${escapeHtml(event.category)}</p><h1>${escapeHtml(event.title)}</h1><p>${escapeHtml(event.description)}</p></div><div class="event-facts"><span>📅 ${escapeHtml(event.event_date)}</span><span>🕒 ${escapeHtml(String(event.event_start_time || '09:00').slice(0, 5))}–${escapeHtml(String(event.event_end_time || '10:00').slice(0, 5))}</span><span>📍 ${escapeHtml(event.location)}</span></div><div class="event-detail-grid"><div class="event-detail-block event-detail-roles"><span class="detail-label">Nepieciešamās lomas</span><div class="role-capacity-list">${roles.map((role) => `<span>${escapeHtml(role.name)} <strong>(${role.filled}/${role.capacity})</strong></span>`).join('') || '<span>Lomas nav norādītas.</span>'}</div></div></div>`;
         detail.dataset.creatorId = event.creator_id;
         const images = sortedEventImages(event);
         if (images.length) detail.insertAdjacentHTML('beforeend', `<div class="event-image-gallery" data-image-gallery>${images.map((image, index) => {
@@ -919,6 +919,11 @@ function setupNotifications(currentUser) {
         const item = records.find(item => item.id === button?.dataset.notificationId);
         if (!item) return;
         close();
+        if (item.event_id) {
+            if (!item.read_at) await supabaseClient.rpc('mark_notification_read', { notification_id: item.id });
+            window.location.href = `event.html?id=${encodeURIComponent(item.event_id)}`;
+            return;
+        }
         detail?.remove();
         detail = document.createElement('dialog');
         detail.className = 'notification-detail-dialog';

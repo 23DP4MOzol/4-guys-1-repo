@@ -873,6 +873,7 @@ begin
         'pending')
     on conflict (id) do update set
         title = excluded.title, category = excluded.category, event_date = excluded.event_date,
+        event_start_time = excluded.event_start_time, event_end_time = excluded.event_end_time,
         location = excluded.location, latitude = excluded.latitude, longitude = excluded.longitude,
         volunteer_roles = excluded.volunteer_roles, volunteer_role_requirements = excluded.volunteer_role_requirements,
         description = excluded.description, whitelist_volunteers = excluded.whitelist_volunteers,
@@ -1508,6 +1509,37 @@ $$;
 drop trigger if exists notify_event_review on public.events;
 create trigger notify_event_review after update of status, rejection_reason on public.events
 for each row execute function public.notify_event_review();
+
+create or replace function public.notify_event_schedule_change()
+returns trigger
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+begin
+    if old.event_date is not distinct from new.event_date
+       and old.event_start_time is not distinct from new.event_start_time
+       and old.event_end_time is not distinct from new.event_end_time then
+        return null;
+    end if;
+
+    insert into public.notifications(recipient_id, event_id, title, body)
+    select application.volunteer_id,
+        new.id,
+        'Pasākuma laiks ir mainīts: ' || new.title,
+        'Jaunais datums un laiks: ' || to_char(new.event_date, 'YYYY-MM-DD') || ' ' ||
+            to_char(new.event_start_time, 'HH24:MI') || '–' || to_char(new.event_end_time, 'HH24:MI') || '.'
+    from public.event_applications application
+    where application.event_id = new.id
+      and application.status = 'approved'::public.application_status;
+    return null;
+end;
+$$;
+
+drop trigger if exists notify_event_schedule_change on public.events;
+create trigger notify_event_schedule_change
+after update of event_date, event_start_time, event_end_time on public.events
+for each row execute function public.notify_event_schedule_change();
 
 create or replace function public.admin_review_event(target_event_id uuid, decision text, rejection_reason text default null)
 returns void language plpgsql security definer set search_path = public, pg_temp
