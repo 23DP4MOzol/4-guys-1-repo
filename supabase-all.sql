@@ -78,9 +78,6 @@ alter table public.events add column if not exists event_end_time time not null 
 alter table public.events add column if not exists event_started_at timestamptz;
 alter table public.events drop constraint if exists events_schedule_check;
 alter table public.events add constraint events_schedule_check check (event_start_time between '00:00'::time and '23:00'::time and event_end_time between '00:00'::time and '23:00'::time and event_end_time > event_start_time);
-alter table public.events add column if not exists volunteer_hours numeric(5,2) not null default 1;
-alter table public.events drop constraint if exists events_volunteer_hours_check;
-alter table public.events add constraint events_volunteer_hours_check check (volunteer_hours > 0 and volunteer_hours <= 24);
 
 create or replace function public.enforce_future_event_date()
 returns trigger
@@ -863,21 +860,18 @@ begin
     end if;
 
     insert into public.events (id, creator_id, title, category, event_date, event_start_time, event_end_time, location,
-        latitude, longitude, volunteer_roles, volunteer_role_requirements, description, whitelist_volunteers, volunteer_hours, status)
+        latitude, longitude, volunteer_roles, volunteer_role_requirements, description, whitelist_volunteers, status)
     values (target_event_id, actor, trim(event_data->>'title'), event_data->>'category',
         (event_data->>'event_date')::date, coalesce((event_data->>'event_start_time')::time, '09:00'::time), coalesce((event_data->>'event_end_time')::time, '10:00'::time), trim(event_data->>'location'),
         latitude_value, longitude_value,
         event_data->>'volunteer_roles', roles, trim(event_data->>'description'),
-        coalesce((event_data->>'whitelist_volunteers')::boolean, false),
-        extract(epoch from ((event_data->>'event_end_time')::time - (event_data->>'event_start_time')::time)) / 3600,
-        'pending')
+        coalesce((event_data->>'whitelist_volunteers')::boolean, false), 'pending')
     on conflict (id) do update set
         title = excluded.title, category = excluded.category, event_date = excluded.event_date,
         event_start_time = excluded.event_start_time, event_end_time = excluded.event_end_time,
         location = excluded.location, latitude = excluded.latitude, longitude = excluded.longitude,
         volunteer_roles = excluded.volunteer_roles, volunteer_role_requirements = excluded.volunteer_role_requirements,
         description = excluded.description, whitelist_volunteers = excluded.whitelist_volunteers,
-        volunteer_hours = excluded.volunteer_hours,
         status = case when public.events.status = 'approved'::public.event_status
             then 'approved'::public.event_status else 'pending'::public.event_status end,
         reviewed_by = case when public.events.status = 'approved'::public.event_status then public.events.reviewed_by else null end,
@@ -948,8 +942,7 @@ as $$
 select exists (
         select 1 from public.events event_record
         where event_record.id = target_event_id
-            and ((event_record.event_started_at is not null and event_record.event_started_at + make_interval(mins => round(event_record.volunteer_hours * 60)::integer) <= now())
-                or ((event_record.event_date + event_record.event_end_time) at time zone 'Europe/Riga') <= now())
+            and ((event_record.event_date + event_record.event_end_time) at time zone 'Europe/Riga') <= now()
 ) $$;
 
 create or replace function public.organizer_set_participant_state(event_id uuid, participant_id uuid, action text)
@@ -1336,15 +1329,6 @@ create table if not exists public.event_completions (
     status public.completion_status not null default 'pending',
     notes text
 );
-create table if not exists public.volunteer_hours (
-    id uuid primary key default gen_random_uuid(),
-    event_id uuid not null references public.events(id) on delete cascade,
-    volunteer_id uuid not null references public.profiles(id) on delete cascade,
-    hours numeric(5,2) not null check (hours > 0 and hours <= 24),
-    awarded_at timestamptz not null default now(),
-    completion_id uuid not null references public.event_completions(id) on delete cascade,
-    unique (event_id, volunteer_id)
-);
 create table if not exists public.volunteer_achievements (
     id uuid primary key default gen_random_uuid(),
     volunteer_id uuid not null references public.profiles(id) on delete cascade,
@@ -1355,23 +1339,20 @@ create table if not exists public.volunteer_achievements (
     unique (volunteer_id, code)
 );
 alter table public.event_completions enable row level security;
-alter table public.volunteer_hours enable row level security;
 alter table public.volunteer_achievements enable row level security;
 do $$
 declare table_name text;
 begin
-    foreach table_name in array array['event_completions', 'volunteer_hours', 'volunteer_achievements'] loop
+    foreach table_name in array array['event_completions', 'volunteer_achievements'] loop
         execute format('drop policy if exists active_accounts_only on public.%I', table_name);
         execute format('create policy active_accounts_only on public.%I as restrictive for all to authenticated using (public.is_active_user()) with check (public.is_active_user())', table_name);
     end loop;
 end $$;
 drop policy if exists "Completion requests are visible to owners and admins" on public.event_completions;
 create policy "Completion requests are visible to owners and admins" on public.event_completions for select to authenticated using (requested_by = auth.uid() or public.is_admin());
-drop policy if exists "Volunteers can view their awarded hours" on public.volunteer_hours;
-create policy "Volunteers can view their awarded hours" on public.volunteer_hours for select to authenticated using (volunteer_id = auth.uid() or public.is_admin());
 drop policy if exists "Volunteers can view their achievements" on public.volunteer_achievements;
 create policy "Volunteers can view their achievements" on public.volunteer_achievements for select to authenticated using (volunteer_id = auth.uid() or public.is_admin());
-grant select on public.event_completions, public.volunteer_hours, public.volunteer_achievements to authenticated;
+grant select on public.event_completions, public.volunteer_achievements to authenticated;
 
 create or replace function public.request_event_completion(target_event_id uuid)
 returns public.event_completions language plpgsql security definer set search_path = public as $$
@@ -1398,21 +1379,11 @@ begin
     select * into event_record from public.events where id=completion_record.event_id for update;
     if event_record.status <> 'approved'::public.event_status or not public.event_is_finished(completion_record.event_id) then raise exception 'Pasākums vēl nav gatavs pārbaudei'; end if;
     update public.event_completions set status=decision, reviewed_by=auth.uid(), reviewed_at=now(), notes=nullif(btrim(review_notes), '') where id=target_completion_id;
-    if decision = 'approved'::public.completion_status then
-        insert into public.volunteer_hours(event_id, volunteer_id, hours, completion_id)
-        select event_record.id, volunteer_id, event_record.volunteer_hours, target_completion_id from public.event_applications where event_id=event_record.id and status='approved' on conflict(event_id, volunteer_id) do nothing;
-        for volunteer_record in select distinct volunteer_id from public.volunteer_hours where event_id=event_record.id loop
-            select coalesce(sum(hours),0) into total_hours from public.volunteer_hours where volunteer_id=volunteer_record.volunteer_id;
-            if total_hours >= 1 then insert into public.volunteer_achievements(volunteer_id,code,title,description) values(volunteer_record.volunteer_id,'first-task','Pirmais labais darbs','Pabeidzi savu pirmo pārbaudīto pasākumu.') on conflict do nothing; end if;
-            if total_hours >= 10 then insert into public.volunteer_achievements(volunteer_id,code,title,description) values(volunteer_record.volunteer_id,'ten-hours','Desmit stundas','Sakrāji vismaz 10 pārbaudītas brīvprīgā darba stundas.') on conflict do nothing; end if;
-            if total_hours >= 25 then insert into public.volunteer_achievements(volunteer_id,code,title,description) values(volunteer_record.volunteer_id,'twenty-five-hours','Kopienas balsts','Sakrāji vismaz 25 pārbaudītas brīvprātīgā darba stundas.') on conflict do nothing; end if;
-        end loop;
-    end if;
 end $$;
 
 create or replace function public.my_volunteer_summary()
-returns table(total_hours numeric, completed_tasks bigint, achievements jsonb) language sql security definer set search_path = public stable as $$
-select coalesce((select sum(hours) from public.volunteer_hours where volunteer_id=auth.uid()),0), (select count(*) from public.volunteer_hours where volunteer_id=auth.uid()), coalesce((select jsonb_agg(to_jsonb(achievement) order by achievement.earned_at desc) from public.volunteer_achievements achievement where achievement.volunteer_id=auth.uid()),'[]'::jsonb)
+returns table(completed_tasks bigint, achievements jsonb) language sql security definer set search_path = public stable as $$
+select (select count(*) from public.event_applications where volunteer_id=auth.uid() and status='approved'), coalesce((select jsonb_agg(to_jsonb(achievement) order by achievement.earned_at desc) from public.volunteer_achievements achievement where achievement.volunteer_id=auth.uid()),'[]'::jsonb)
 $$;
 revoke all on function public.request_event_completion(uuid), public.admin_review_event_completion(uuid, public.completion_status, text), public.my_volunteer_summary() from public, anon;
 grant execute on function public.request_event_completion(uuid), public.admin_review_event_completion(uuid, public.completion_status, text), public.my_volunteer_summary() to authenticated;

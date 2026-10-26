@@ -97,19 +97,18 @@ begin
         raise exception 'Upload each image to your own storage before saving';
     end if;
 
-    insert into public.events (id, creator_id, title, category, event_date, location,
-        latitude, longitude, volunteer_roles, volunteer_role_requirements, description, whitelist_volunteers, volunteer_hours, status)
+    insert into public.events (id, creator_id, title, category, event_date, event_time, location,
+        latitude, longitude, volunteer_roles, volunteer_role_requirements, description, whitelist_volunteers, status)
     values (target_event_id, actor, trim(event_data->>'title'), event_data->>'category',
-        (event_data->>'event_date')::date, trim(event_data->>'location'),
+        (event_data->>'event_date')::date, coalesce((event_data->>'event_time')::time, '12:00'), trim(event_data->>'location'),
         latitude_value, longitude_value,
         event_data->>'volunteer_roles', roles, trim(event_data->>'description'),
-        coalesce((event_data->>'whitelist_volunteers')::boolean, false), coalesce((event_data->>'volunteer_hours')::numeric, 1), 'pending')
+        coalesce((event_data->>'whitelist_volunteers')::boolean, false), 'pending')
     on conflict (id) do update set
-        title = excluded.title, category = excluded.category, event_date = excluded.event_date,
+        title = excluded.title, category = excluded.category, event_date = excluded.event_date, event_time = excluded.event_time,
         location = excluded.location, latitude = excluded.latitude, longitude = excluded.longitude,
         volunteer_roles = excluded.volunteer_roles, volunteer_role_requirements = excluded.volunteer_role_requirements,
         description = excluded.description, whitelist_volunteers = excluded.whitelist_volunteers,
-        volunteer_hours = excluded.volunteer_hours,
         status = case when public.events.status = 'approved'::public.event_status
             then 'approved'::public.event_status else 'pending'::public.event_status end,
         reviewed_by = case when public.events.status = 'approved'::public.event_status then public.events.reviewed_by else null end,

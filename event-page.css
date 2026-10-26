@@ -476,19 +476,19 @@ body.event-detail-page .event-person-avatar .person-avatar-initials {
 }
 
 body.event-detail-page .event-person-row > div,
-body.event-detail-page .event-person-with-copy > span {
+body.event-detail_page .event-person-with-copy > span {
     display: grid;
     gap: 0.1rem;
     min-width: 0;
 }
 
 body.event-detail-page .event-organizer-summary .event-person-row > div,
-body.event-detail-page .event-participants-summary .event-person-row > div {
+body.event-detail_page .event-participants-summary .event-person-row > div {
     justify-items: center;
 }
 
 body.event-detail-page .event-person-row span,
-body.event-detail-page .event-person-with-copy small {
+body.event-detail_page .event-person-with-copy small {
     color: var(--text-muted);
     font-size: 0.8rem;
     overflow-wrap: anywhere;
@@ -619,16 +619,16 @@ body.event-detail-page .chat-list .chat-message {
     gap: 0.65rem;
 }
 
-body.event-detail-page .chat-message-copy {
+body.event-detail_page .chat-message-copy {
     flex: 1;
     min-width: 0;
 }
 
-body.event-detail-page .chat-message-copy p {
+body.event-detail_page .chat-message-copy p {
     overflow-wrap: anywhere;
 }
 
-body.event-detail-page .chat-delete {
+body.event-detail_page .chat-delete {
     background: transparent;
     border: 0;
     color: #b42318;
@@ -659,7 +659,7 @@ body.dark-mode.event-detail-page .chat-list p strong {
 }
 
 body.dark-mode.event-detail-page .event-participants-summary,
-body.dark-mode.event-detail-page .event-organizer-card .owned-event {
+body.dark-mode.event-detail_page .event-organizer-card .owned-event {
     border-color: #31416f;
 }
 
@@ -689,7 +689,7 @@ body.dark-mode.event-detail-page .event-map-card .event-map {
         padding: 3.25rem 1.25rem;
     }
 
-    body.event-detail-page .role-capacity-list {
+    body.event-detail_page .role-capacity-list {
         flex-wrap: wrap;
         justify-content: center;
         overflow-x: visible;
@@ -791,3 +791,30 @@ body.event-detail-page .event-chat-form[hidden] { display: none; }
 
 /* Keep the role heading aligned with the centered event facts. */
 body.event-detail-page .event-detail-roles .role-capacity-list { align-items: center; }
+
+body.event-detail-page .event-person-button {
+    appearance: none;
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 0.85rem;
+    cursor: pointer;
+    display: flex;
+    gap: 0.65rem;
+    justify-content: center;
+    padding: 0.5rem 0.6rem;
+    transition: background-color 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
+    width: 100%;
+}
+
+body.event-detail-page .event-person-button:hover,
+body.event-detail-page .event-person-button:focus-visible {
+    background: rgba(54, 77, 181, 0.05);
+    border-color: rgba(54, 77, 181, 0.2);
+    outline: none;
+    transform: translateY(-1px);
+}
+
+body.event-detail-page .event-person-button strong,
+body.event-detail-page .event-person-button span {
+    text-align: center;
+}

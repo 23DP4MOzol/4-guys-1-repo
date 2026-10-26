@@ -150,6 +150,11 @@
     padding-top: 1rem;
 }
 
+.event-schedule-status { font-weight: 800; }
+.event-schedule-status-upcoming { color: #b54708; }
+.event-schedule-status-in-process { color: #027a48; }
+.event-schedule-status-done { color: #667085; }
+
 .btn-card {
     display: block;
     text-align: center;
